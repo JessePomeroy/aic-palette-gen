@@ -103,7 +103,7 @@ Suggest exactly ${count} colors that capture the emotional feeling of the artwor
 			const isRateLimit = geminiRes?.status === 429;
 			return new Response(JSON.stringify({
 				error: isRateLimit
-					? 'Rate limit reached. Wait a minute and try again.'
+					? 'Something went wrong. Try again later.'
 					: `Gemini API returned ${geminiRes?.status}`
 			}), {
 				status: isRateLimit ? 429 : 502,
