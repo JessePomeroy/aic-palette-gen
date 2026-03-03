@@ -90,7 +90,7 @@ https://www.artic.edu/iiif/2/{image_id}/full/843,/0/default.jpg
 ## Commands
 
 ```bash
-npm run dev       # Dev server (uses npm, not pnpm)
-npm run build     # Production build
-npx svelte-check  # Type-check Svelte files
+pnpm dev          # Dev server
+pnpm build        # Production build
+pnpm svelte-check # Type-check Svelte files
 ```
