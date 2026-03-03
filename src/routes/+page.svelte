@@ -1,13 +1,8 @@
 <!--
   Main Page — Art Institute Color Palette Generator
 
-  Mobile-first responsive layout:
-  - Mobile: single column — search/controls → artwork → palette → share/export
-  - Desktop (lg+): sidebar (right 1/4) + artwork area (left 3/4)
-
-  On load, fetches a random artwork and extracts its color palette.
-  Color extraction runs client-side via Canvas + k-means (see $lib/colors/extraction.ts).
-  Some IIIF images return 403 (restricted), so we retry up to 10 random artworks on load.
+  Dark gallery aesthetic — artwork is the star, ui stays out of the way.
+  Mobile-first: stacked on small screens, sidebar on lg+.
 -->
 
 <script lang="ts">
@@ -17,7 +12,7 @@
 	import { extractColors, type ExtractedColor, type ExtractionMode } from '$lib/colors/extraction';
 	import { exportJson, exportCss, exportPng, exportAse, downloadFile } from '$lib/export/palette';
 
-	// ── Reactive State ──
+	// ── reactive state ──
 
 	let artwork = $state<Artwork | null>(null);
 	let colors = $state<ExtractedColor[]>([]);
@@ -26,16 +21,17 @@
 	let colorCount = $state(5);
 	let extractionMode = $state<ExtractionMode>('dominant');
 	let shareStatus = $state('');
-	let aiDescription = $state('');          // Mood description from Gemini (AI mode only)
-	let aiLoading = $state(false);           // Separate loading state for AI requests
+	let aiDescription = $state('');
+	let aiLoading = $state(false);
+	let copiedHex = $state('');
 
-	// ── Lifecycle ──
+	// ── lifecycle ──
 
 	onMount(async () => {
 		await loadRandom();
 	});
 
-	// ── Data Loading ──
+	// ── data loading ──
 
 	async function loadRandom() {
 		loading = true;
@@ -84,7 +80,6 @@
 
 	async function regeneratePalette() {
 		if (!artwork?.image_id) return;
-
 		if (extractionMode === 'ai') {
 			await fetchAiPalette();
 		} else {
@@ -93,10 +88,6 @@
 		}
 	}
 
-	/**
-	 * Fetch an AI-generated palette from Gemini via our server endpoint.
-	 * Returns mood description + curated colors.
-	 */
 	async function fetchAiPalette() {
 		if (!artwork?.image_id) return;
 		aiLoading = true;
@@ -109,15 +100,11 @@
 					count: colorCount
 				})
 			});
-
 			const data = await res.json();
-
 			if (!res.ok) {
-				// Show the server's error message — includes rate limit info, image access errors, etc.
 				aiDescription = data.error || 'Failed to generate palette. Try again.';
 				return;
 			}
-
 			colors = data.colors;
 			aiDescription = data.description;
 		} catch (e) {
@@ -128,10 +115,12 @@
 		}
 	}
 
-	// ── User Actions ──
+	// ── user actions ──
 
 	function copyColor(hex: string) {
 		navigator.clipboard.writeText(hex);
+		copiedHex = hex;
+		setTimeout(() => copiedHex = '', 1500);
 	}
 
 	async function handleShare() {
@@ -150,11 +139,11 @@
 			if (!res.ok) throw new Error('Failed to save');
 			const { url } = await res.json();
 			await navigator.clipboard.writeText(url);
-			shareStatus = 'Link copied!';
+			shareStatus = 'link copied';
 			setTimeout(() => shareStatus = '', 3000);
 		} catch (e) {
 			console.error('Share failed:', e);
-			shareStatus = 'Failed to share';
+			shareStatus = 'failed to share';
 			setTimeout(() => shareStatus = '', 3000);
 		}
 	}
@@ -178,204 +167,296 @@
 				break;
 		}
 	}
+
+	/**
+	 * Returns appropriate text color (white or black) for readability
+	 * against a given background hex color.
+	 */
+	function contrastText(hex: string): string {
+		const r = parseInt(hex.slice(1, 3), 16);
+		const g = parseInt(hex.slice(3, 5), 16);
+		const b = parseInt(hex.slice(5, 7), 16);
+		const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+		return luminance > 0.5 ? '#1a1a1a' : '#f0f0f0';
+	}
 </script>
 
-<!-- ── Layout ── -->
+<!-- ── layout ── -->
 
-<div class="min-h-screen bg-stone-50 text-stone-900">
+<div class="min-h-screen" style="background-color: var(--bg-primary); color: var(--text-primary);">
 
-	<!-- Header -->
-	<header class="border-b border-stone-200 bg-white px-4 py-3 sm:px-6 sm:py-4">
-		<h1 class="text-xl font-semibold sm:text-2xl">Art Institute Color Palette</h1>
+	<!-- header — thin, unobtrusive -->
+	<header class="border-b px-4 py-3 sm:px-6" style="border-color: var(--border); background-color: var(--bg-secondary);">
+		<div class="mx-auto flex max-w-screen-2xl items-center justify-between">
+			<h1 class="text-sm font-light tracking-widest uppercase" style="color: var(--text-secondary);">
+				palette · aic
+			</h1>
+			<p class="hidden text-xs sm:block" style="color: var(--text-muted);">
+				art institute of chicago
+			</p>
+		</div>
 	</header>
 
-	<!--
-		Mobile: stacked column layout (controls → artwork → palette)
-		Desktop (lg+): sidebar on right, artwork on left
-	-->
-	<main class="flex flex-col lg:flex-row">
+	<main class="mx-auto flex max-w-screen-2xl flex-col lg:flex-row">
 
-		<!-- ── Controls ──
-			Mobile: horizontal bar at top with search + quick actions
-			Desktop: fixed sidebar on the right
-		-->
-		<aside class="order-1 border-b border-stone-200 bg-white p-4 sm:p-6 lg:order-2 lg:w-80 lg:border-b-0 lg:border-l">
+		<!-- ── controls ── -->
+		<aside
+			class="order-1 border-b p-4 sm:p-5 lg:order-2 lg:w-72 lg:border-b-0 lg:border-l"
+			style="border-color: var(--border); background-color: var(--bg-secondary);"
+		>
 
-			<!-- Search bar -->
-			<div class="mb-4 lg:mb-6">
-				<form onsubmit={(e) => { e.preventDefault(); handleSearch(); }} class="flex gap-2">
-					<input
-						type="text"
-						bind:value={searchQuery}
-						placeholder="Search artworks..."
-						class="min-w-0 flex-1 rounded border border-stone-300 px-3 py-2 text-sm sm:text-base"
-					/>
-					<button
-						type="submit"
-						class="shrink-0 rounded bg-stone-900 px-3 py-2 text-sm text-white hover:bg-stone-700 sm:px-4 sm:text-base"
-					>
-						Search
-					</button>
-				</form>
-			</div>
+			<!-- search -->
+			<form onsubmit={(e) => { e.preventDefault(); handleSearch(); }} class="mb-5 flex gap-2">
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder="search artworks..."
+					class="min-w-0 flex-1 rounded-md px-3 py-2 text-sm"
+					style="border: 1px solid var(--border);"
+				/>
+				<button
+					type="submit"
+					class="shrink-0 rounded-md px-3 py-2 text-sm cursor-pointer"
+					style="background-color: var(--accent); color: var(--bg-primary);"
+					onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-hover)'}
+					onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'var(--accent)'}
+				>
+					search
+				</button>
+			</form>
 
-			<!-- Quick actions — random button + color count on same line -->
-			<div class="mb-4 flex items-center gap-2 lg:mb-6">
+			<!-- controls row -->
+			<div class="mb-5 flex items-center gap-2">
 				<button
 					onclick={loadRandom}
-					class="shrink-0 rounded border border-stone-300 px-3 py-2 text-sm hover:bg-stone-50 sm:px-4"
+					class="shrink-0 rounded-md border px-3 py-2 text-sm cursor-pointer"
+					style="border-color: var(--border); color: var(--text-secondary);"
+					onmouseenter={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+					onmouseleave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
 				>
-					Random
+					random
 				</button>
 
-				<!-- Color count dropdown -->
 				<select
 					bind:value={colorCount}
 					onchange={regeneratePalette}
-					class="rounded border border-stone-300 px-2 py-2 text-sm"
+					class="rounded-md px-2 py-2 text-sm cursor-pointer"
+					style="border: 1px solid var(--border);"
 				>
-					<option value={5}>5 colors</option>
-					<option value={6}>6 colors</option>
-					<option value={7}>7 colors</option>
-					<option value={8}>8 colors</option>
+					<option value={5}>5</option>
+					<option value={6}>6</option>
+					<option value={7}>7</option>
+					<option value={8}>8</option>
 				</select>
 
-				<!-- Extraction mode dropdown -->
 				<select
 					bind:value={extractionMode}
 					onchange={regeneratePalette}
-					class="rounded border border-stone-300 px-2 py-2 text-sm"
+					class="rounded-md px-2 py-2 text-sm cursor-pointer"
+					style="border: 1px solid var(--border);"
 				>
-					<option value="dominant">Dominant</option>
-					<option value="vibrant">Vibrant</option>
-					<option value="ai">Tone</option>
+					<option value="dominant">dominant</option>
+					<option value="vibrant">vibrant</option>
+					<option value="ai">tone</option>
 				</select>
 			</div>
 
-			<!-- ── Share + Export (visible on desktop sidebar, hidden on mobile — shown below palette instead) ── -->
+			<!-- share + export (desktop sidebar) -->
 			{#if colors.length > 0}
 				<div class="hidden lg:block">
-					<!-- Share button -->
-					<div class="mb-6 mt-2">
+					<div class="mb-5">
 						<button
 							onclick={handleShare}
-							class="w-full rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700"
+							class="w-full rounded-md py-2.5 text-sm font-medium cursor-pointer"
+							style="background-color: var(--accent); color: var(--bg-primary);"
+							onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-hover)'}
+							onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'var(--accent)'}
 						>
-							Share Palette
+							share palette
 						</button>
 						{#if shareStatus}
-							<p class="mt-2 text-center text-sm text-stone-500">{shareStatus}</p>
+							<p class="mt-2 text-center text-xs" style="color: var(--text-muted);">{shareStatus}</p>
 						{/if}
 					</div>
 
-					<!-- Export buttons -->
 					<div>
-						<h3 class="mb-3 text-sm font-medium">Export</h3>
+						<h3 class="mb-3 text-xs font-medium tracking-wider uppercase" style="color: var(--text-muted);">export</h3>
 						<div class="grid grid-cols-2 gap-2">
-							<button onclick={() => handleExport('json')} class="rounded border border-stone-300 px-3 py-2 text-sm hover:bg-stone-50">JSON</button>
-							<button onclick={() => handleExport('css')} class="rounded border border-stone-300 px-3 py-2 text-sm hover:bg-stone-50">CSS</button>
-							<button onclick={() => handleExport('png')} class="rounded border border-stone-300 px-3 py-2 text-sm hover:bg-stone-50">PNG</button>
-							<button onclick={() => handleExport('ase')} class="rounded border border-stone-300 px-3 py-2 text-sm hover:bg-stone-50">.ASE</button>
+							{#each ['json', 'css', 'png', 'ase'] as fmt}
+								<button
+									onclick={() => handleExport(fmt)}
+									class="rounded-md border py-2 text-xs uppercase tracking-wider cursor-pointer"
+									style="border-color: var(--border); color: var(--text-secondary);"
+									onmouseenter={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+									onmouseleave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+								>
+									{fmt === 'ase' ? '.ase' : fmt}
+								</button>
+							{/each}
 						</div>
 					</div>
+
+					<!-- color list with details -->
+					{#if colors.length > 0}
+						<div class="mt-6">
+							<h3 class="mb-3 text-xs font-medium tracking-wider uppercase" style="color: var(--text-muted);">colors</h3>
+							<div class="space-y-1.5">
+								{#each colors as color}
+									<button
+										onclick={() => copyColor(color.hex)}
+										class="flex w-full items-center gap-3 rounded-md px-2 py-1.5 cursor-pointer"
+										style="background-color: {copiedHex === color.hex ? 'var(--accent-subtle)' : 'transparent'};"
+										onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-subtle)'}
+										onmouseleave={(e) => e.currentTarget.style.backgroundColor = copiedHex === color.hex ? 'var(--accent-subtle)' : 'transparent'}
+									>
+										<div
+											class="h-6 w-6 shrink-0 rounded"
+											style="background-color: {color.hex};"
+										></div>
+										<span class="font-mono text-xs" style="color: var(--text-secondary);">
+											{color.hex}
+										</span>
+										{#if color.name}
+											<span class="ml-auto truncate text-xs italic" style="color: var(--text-muted);">
+												{color.name}
+											</span>
+										{/if}
+										{#if copiedHex === color.hex}
+											<span class="text-xs" style="color: var(--accent);">copied</span>
+										{/if}
+									</button>
+								{/each}
+							</div>
+						</div>
+					{/if}
 				</div>
 			{/if}
 		</aside>
 
-		<!-- ── Artwork Display + Palette ── -->
-		<section class="order-2 flex-1 p-4 sm:p-6 lg:order-1">
+		<!-- ── artwork + palette ── -->
+		<section class="order-2 flex-1 p-4 sm:p-6 lg:order-1 lg:p-8">
 			{#if loading}
 				<div class="flex h-64 items-center justify-center sm:h-96">
-					<span class="text-stone-500">Loading...</span>
+					<div class="flex flex-col items-center gap-3">
+						<div class="h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" style="border-color: var(--text-muted); border-top-color: transparent;"></div>
+						<span class="text-sm" style="color: var(--text-muted);">loading...</span>
+					</div>
 				</div>
 			{:else if artwork}
-				<!-- Artwork image — full width on mobile, constrained on desktop -->
-				<div class="mb-4 sm:mb-6">
+				<!-- artwork image -->
+				<div class="mb-6 sm:mb-8">
 					{#if artwork.image_id}
-						<!-- crossorigin="anonymous" is REQUIRED — prevents opaque cache blocking fetch() -->
 						<img
 							crossorigin="anonymous"
 							src={getImageUrl(artwork.image_id, 'large')}
 							alt={artwork.thumbnail?.alt_text || artwork.title}
-							class="w-full rounded-lg shadow-lg sm:w-auto sm:max-h-[60vh]"
+							class="artwork-image w-full rounded-lg sm:w-auto sm:max-h-[65vh]"
+							style="box-shadow: 0 8px 30px rgba(0,0,0,0.4);"
 						/>
 					{:else}
-						<div class="flex h-48 items-center justify-center rounded-lg bg-stone-200 sm:h-96">
-							<span class="text-stone-500">No image available</span>
+						<div
+							class="flex h-48 items-center justify-center rounded-lg sm:h-96"
+							style="background-color: var(--bg-surface);"
+						>
+							<span style="color: var(--text-muted);">no image available</span>
 						</div>
 					{/if}
 				</div>
 
-				<!-- Artwork metadata -->
-				<div class="mb-4 sm:mb-6">
-					<h2 class="text-lg font-medium sm:text-xl">{artwork.title}</h2>
-					<p class="text-sm text-stone-600 sm:text-base">{artwork.artist_display}</p>
-					<p class="text-xs text-stone-500 sm:text-sm">{artwork.date_display}</p>
+				<!-- artwork metadata — museum label style -->
+				<div class="mb-6 sm:mb-8">
+					<h2 class="text-lg font-normal italic sm:text-xl" style="color: var(--text-primary);">
+						{artwork.title}
+					</h2>
+					<p class="mt-1 text-sm" style="color: var(--text-secondary);">
+						{artwork.artist_display}
+					</p>
+					{#if artwork.date_display}
+						<p class="mt-0.5 text-xs" style="color: var(--text-muted);">
+							{artwork.date_display}
+						</p>
+					{/if}
 				</div>
 
-				<!-- ── AI Loading State ── -->
+				<!-- ai loading -->
 				{#if aiLoading}
-					<div class="mb-4 flex items-center gap-2 rounded-lg bg-violet-50 p-4 sm:mb-6">
-						<span class="text-sm text-violet-700">Analyzing artwork mood...</span>
+					<div class="mb-6 rounded-lg p-4" style="background-color: var(--bg-surface); border: 1px solid var(--border);">
+						<span class="text-sm italic" style="color: var(--text-muted);">analyzing mood...</span>
 					</div>
 				{/if}
 
-				<!-- ── AI Mood Description ── -->
+				<!-- ai mood description -->
 				{#if aiDescription && !aiLoading}
-					<div class="mb-4 rounded-lg bg-violet-50 p-3 sm:mb-6 sm:p-4">
-						<p class="text-sm italic text-violet-900 sm:text-base">{aiDescription}</p>
+					<div class="mb-6 rounded-lg p-4" style="background-color: var(--bg-surface); border: 1px solid var(--border);">
+						<p class="text-sm italic leading-relaxed" style="color: var(--text-secondary);">
+							{aiDescription}
+						</p>
 					</div>
 				{/if}
 
-				<!-- ── Color Palette (horizontal swatches) ── -->
+				<!-- ── color palette swatches ── -->
 				{#if colors.length > 0 && !aiLoading}
-					<div class="mb-4 sm:mb-6">
-						<!-- Swatch strip -->
-						<div class="flex overflow-hidden rounded-lg shadow-sm">
+					<div class="mb-6">
+						<!-- tall swatch strip — like paint chips -->
+						<div class="flex overflow-hidden rounded-lg" style="box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
 							{#each colors as color}
 								<button
 									onclick={() => copyColor(color.hex)}
-									class="group flex-1 transition-transform hover:z-10 hover:scale-105"
-									title="Click to copy {color.hex}"
+									class="group relative flex-1 cursor-pointer"
+									title="copy {color.hex}"
 								>
 									<div
-										class="h-12 sm:h-16"
-										style="background-color: {color.hex}"
-									></div>
+										class="flex h-20 items-end justify-center pb-2 sm:h-28"
+										style="background-color: {color.hex};"
+									>
+										<!-- hex label on the swatch itself -->
+										<span
+											class="font-mono text-[10px] opacity-0 transition-opacity group-hover:opacity-100 sm:text-xs"
+											style="color: {contrastText(color.hex)};"
+										>
+											{copiedHex === color.hex ? 'copied' : color.hex}
+										</span>
+									</div>
 								</button>
 							{/each}
 						</div>
 
-						<!-- Hex labels -->
-						<div class="mt-1.5 flex sm:mt-2">
-							{#each colors as color}
-								<button
-									onclick={() => copyColor(color.hex)}
-									class="flex-1 text-center font-mono text-[10px] text-stone-600 hover:text-stone-900 sm:text-xs"
-									title="Click to copy"
-								>
-									{color.hex}
-								</button>
-							{/each}
-						</div>
+						<!-- color names (tone mode) -->
+						{#if colors.some(c => c.name)}
+							<div class="mt-2 flex">
+								{#each colors as color}
+									<div class="flex-1 text-center">
+										<span class="text-[9px] italic sm:text-[10px]" style="color: var(--text-muted);">
+											{color.name || ''}
+										</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
 
-					<!-- ── Share + Export (mobile only — below palette) ── -->
+					<!-- share + export (mobile) -->
 					<div class="flex flex-wrap items-center gap-2 lg:hidden">
 						<button
 							onclick={handleShare}
-							class="rounded bg-stone-900 px-3 py-1.5 text-sm text-white hover:bg-stone-700"
+							class="rounded-md px-3 py-1.5 text-sm cursor-pointer"
+							style="background-color: var(--accent); color: var(--bg-primary);"
 						>
-							Share
+							share
 						</button>
 						{#if shareStatus}
-							<span class="text-sm text-stone-500">{shareStatus}</span>
+							<span class="text-xs" style="color: var(--text-muted);">{shareStatus}</span>
 						{/if}
-						<span class="text-stone-300">|</span>
-						<button onclick={() => handleExport('json')} class="rounded border border-stone-300 px-2.5 py-1.5 text-xs hover:bg-stone-100">JSON</button>
-						<button onclick={() => handleExport('css')} class="rounded border border-stone-300 px-2.5 py-1.5 text-xs hover:bg-stone-100">CSS</button>
-						<button onclick={() => handleExport('png')} class="rounded border border-stone-300 px-2.5 py-1.5 text-xs hover:bg-stone-100">PNG</button>
-						<button onclick={() => handleExport('ase')} class="rounded border border-stone-300 px-2.5 py-1.5 text-xs hover:bg-stone-100">.ASE</button>
+						<span style="color: var(--border);">·</span>
+						{#each ['json', 'css', 'png', 'ase'] as fmt}
+							<button
+								onclick={() => handleExport(fmt)}
+								class="rounded-md border px-2.5 py-1.5 text-xs uppercase cursor-pointer"
+								style="border-color: var(--border); color: var(--text-secondary);"
+							>
+								{fmt === 'ase' ? '.ase' : fmt}
+							</button>
+						{/each}
 					</div>
 				{/if}
 			{/if}
