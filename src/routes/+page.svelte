@@ -25,6 +25,24 @@
 	let aiLoading = $state(false);
 	let copiedHex = $state('');
 
+	// ── derived: pick the most vibrant color as the dynamic accent ──
+	let accentColor = $derived.by(() => {
+		if (colors.length === 0) return '#b8a080'; // fallback warm accent
+		// sort by saturation, pick the most vivid
+		const sorted = [...colors].sort((a, b) => b.hsl.s - a.hsl.s);
+		return sorted[0].hex;
+	});
+
+	// ── derived: lighter version for backgrounds ──
+	let accentSubtle = $derived.by(() => {
+		// convert to rgba with low opacity
+		const hex = accentColor.replace('#', '');
+		const r = parseInt(hex.slice(0, 2), 16);
+		const g = parseInt(hex.slice(2, 4), 16);
+		const b = parseInt(hex.slice(4, 6), 16);
+		return `rgba(${r}, ${g}, ${b}, 0.15)`;
+	});
+
 	// ── lifecycle ──
 
 	onMount(async () => {
@@ -217,9 +235,9 @@
 				<button
 					type="submit"
 					class="shrink-0 rounded-md px-3 py-2 text-sm cursor-pointer"
-					style="background-color: var(--accent); color: var(--bg-primary);"
-					onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-hover)'}
-					onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'var(--accent)'}
+					style="background-color: {accentColor}; color: var(--bg-primary);"
+					onmouseenter={(e) => e.currentTarget.style.backgroundColor = accentColor; e.currentTarget.style.filter = 'brightness(1.1)'}
+					onmouseleave={(e) => e.currentTarget.style.backgroundColor = accentColor}
 				>
 					search
 				</button>
@@ -231,8 +249,8 @@
 					onclick={loadRandom}
 					class="shrink-0 rounded-md border px-3 py-2 text-sm cursor-pointer"
 					style="border-color: var(--border); color: var(--text-secondary);"
-					onmouseenter={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
-					onmouseleave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+					onmouseenter={(e) => e.currentTarget.style.borderColor = accentColor}}
+					onmouseleave={(e) => e.currentTarget.style.borderColor = "var(--border)"}}
 				>
 					random
 				</button>
@@ -268,9 +286,9 @@
 						<button
 							onclick={handleShare}
 							class="w-full rounded-md py-2.5 text-sm font-medium cursor-pointer"
-							style="background-color: var(--accent); color: var(--bg-primary);"
-							onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-hover)'}
-							onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'var(--accent)'}
+							style="background-color: {accentColor}; color: var(--bg-primary);"
+							onmouseenter={(e) => e.currentTarget.style.backgroundColor = accentColor; e.currentTarget.style.filter = 'brightness(1.1)'}
+							onmouseleave={(e) => e.currentTarget.style.backgroundColor = accentColor}
 						>
 							share palette
 						</button>
@@ -287,8 +305,8 @@
 									onclick={() => handleExport(fmt)}
 									class="rounded-md border py-2 text-xs uppercase tracking-wider cursor-pointer"
 									style="border-color: var(--border); color: var(--text-secondary);"
-									onmouseenter={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
-									onmouseleave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
+									onmouseenter={(e) => e.currentTarget.style.borderColor = accentColor}}
+									onmouseleave={(e) => e.currentTarget.style.borderColor = "var(--border)"}}
 								>
 									{fmt === 'ase' ? '.ase' : fmt}
 								</button>
@@ -305,9 +323,9 @@
 									<button
 										onclick={() => copyColor(color.hex)}
 										class="flex w-full items-center gap-3 rounded-md px-2 py-1.5 cursor-pointer"
-										style="background-color: {copiedHex === color.hex ? 'var(--accent-subtle)' : 'transparent'};"
-										onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-subtle)'}
-										onmouseleave={(e) => e.currentTarget.style.backgroundColor = copiedHex === color.hex ? 'var(--accent-subtle)' : 'transparent'}
+										style="background-color: {copiedHex === color.hex ? accentSubtle : 'transparent'};"
+										onmouseenter={(e) => e.currentTarget.style.backgroundColor = accentSubtle}
+										onmouseleave={(e) => e.currentTarget.style.backgroundColor = copiedHex === color.hex ? accentSubtle : 'transparent'}
 									>
 										<div
 											class="h-6 w-6 shrink-0 rounded"
@@ -322,7 +340,7 @@
 											</span>
 										{/if}
 										{#if copiedHex === color.hex}
-											<span class="text-xs" style="color: var(--accent);">copied</span>
+											<span class="text-xs" style="color: {accentColor};">copied</span>
 										{/if}
 									</button>
 								{/each}
@@ -440,7 +458,7 @@
 						<button
 							onclick={handleShare}
 							class="rounded-md px-3 py-1.5 text-sm cursor-pointer"
-							style="background-color: var(--accent); color: var(--bg-primary);"
+							style="background-color: {accentColor}; color: var(--bg-primary);"
 						>
 							share
 						</button>
