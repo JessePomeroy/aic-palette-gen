@@ -26,6 +26,7 @@
 	let searchQuery = $state('');                      // Search input value
 	let colorCount = $state(5);                        // Number of colors to extract (5-8)
 	let extractionMode = $state<ExtractionMode>('dominant'); // Current extraction mode
+	let shareStatus = $state('');                          // Share button feedback text
 
 	// ── Lifecycle ──
 
@@ -104,6 +105,35 @@
 	/** Copy a hex color value to the clipboard */
 	function copyColor(hex: string) {
 		navigator.clipboard.writeText(hex);
+	}
+
+	/** Save the current palette to Neon and copy the shareable link */
+	async function handleShare() {
+		if (!artwork || colors.length === 0) return;
+
+		try {
+			const res = await fetch('/api/palette', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					artworkId: artwork.id,
+					colors,
+					mode: extractionMode,
+					count: colorCount
+				})
+			});
+
+			if (!res.ok) throw new Error('Failed to save');
+
+			const { url } = await res.json();
+			await navigator.clipboard.writeText(url);
+			shareStatus = 'Link copied!';
+			setTimeout(() => shareStatus = '', 3000);
+		} catch (e) {
+			console.error('Share failed:', e);
+			shareStatus = 'Failed to share';
+			setTimeout(() => shareStatus = '', 3000);
+		}
 	}
 
 	/** Export the current palette in the selected format */
@@ -275,8 +305,21 @@
 			</div>
 
 
-			<!-- ── Export Buttons ── -->
+			<!-- ── Share + Export ── -->
 			{#if colors.length > 0}
+				<!-- Share button — saves to Neon and copies link -->
+				<div class="mb-6">
+					<button
+						onclick={handleShare}
+						class="w-full rounded bg-stone-900 px-4 py-2 text-white hover:bg-stone-700"
+					>
+						🔗 Share Palette
+					</button>
+					{#if shareStatus}
+						<p class="mt-2 text-center text-sm text-stone-500">{shareStatus}</p>
+					{/if}
+				</div>
+
 				<div>
 					<h3 class="mb-3 text-sm font-medium">Export</h3>
 					<div class="grid grid-cols-2 gap-2">
