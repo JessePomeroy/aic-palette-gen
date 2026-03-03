@@ -217,8 +217,15 @@
             });
             if (!res.ok) throw new Error("Failed to save");
             const { url } = await res.json();
-            await navigator.clipboard.writeText(url);
-            shareStatus = "link copied";
+
+            // Try Web Share API first (better mobile support), fallback to clipboard
+            if (navigator.share) {
+                await navigator.share({ title: "Chroma Collection", url });
+                shareStatus = "shared";
+            } else {
+                await navigator.clipboard.writeText(url);
+                shareStatus = "link copied";
+            }
             setTimeout(() => (shareStatus = ""), 3000);
         } catch (e) {
             console.error("Share failed:", e);
