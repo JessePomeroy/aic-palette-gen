@@ -49,6 +49,31 @@
 		await loadRandom();
 	});
 
+	// ── hover handlers (inline multiple statements don't work in Svelte 5 SSR) ──
+	function brightenBg(e: MouseEvent) {
+		const target = e.currentTarget as HTMLElement;
+		target.style.backgroundColor = accentColor;
+		target.style.filter = 'brightness(1.1)';
+	}
+	function resetBg(e: MouseEvent) {
+		const target = e.currentTarget as HTMLElement;
+		target.style.backgroundColor = accentColor;
+		target.style.filter = 'none';
+	}
+	function brightenBorder(e: MouseEvent) {
+		(e.currentTarget as HTMLElement).style.borderColor = accentColor;
+	}
+	function resetBorder(e: MouseEvent) {
+		(e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+	}
+	function setSubtleBg(e: MouseEvent) {
+		(e.currentTarget as HTMLElement).style.backgroundColor = accentSubtle;
+	}
+	function clearSubtleBg(e: MouseEvent) {
+		const target = e.currentTarget as HTMLElement;
+		target.style.backgroundColor = copiedHex && target.dataset.hex === copiedHex ? accentSubtle : 'transparent';
+	}
+
 	// ── data loading ──
 
 	async function loadRandom() {
@@ -236,8 +261,8 @@
 					type="submit"
 					class="shrink-0 rounded-md px-3 py-2 text-sm cursor-pointer"
 					style="background-color: {accentColor}; color: var(--bg-primary);"
-					onmouseenter={(e) => e.currentTarget.style.backgroundColor = accentColor; e.currentTarget.style.filter = 'brightness(1.1)'}
-					onmouseleave={(e) => e.currentTarget.style.backgroundColor = accentColor}
+					onmouseenter={brightenBg}
+					onmouseleave={resetBg}
 				>
 					search
 				</button>
@@ -249,8 +274,8 @@
 					onclick={loadRandom}
 					class="shrink-0 rounded-md border px-3 py-2 text-sm cursor-pointer"
 					style="border-color: var(--border); color: var(--text-secondary);"
-					onmouseenter={(e) => e.currentTarget.style.borderColor = accentColor}}
-					onmouseleave={(e) => e.currentTarget.style.borderColor = "var(--border)"}}
+					onmouseenter={brightenBorder}
+					onmouseleave={resetBorder}
 				>
 					random
 				</button>
@@ -287,8 +312,8 @@
 							onclick={handleShare}
 							class="w-full rounded-md py-2.5 text-sm font-medium cursor-pointer"
 							style="background-color: {accentColor}; color: var(--bg-primary);"
-							onmouseenter={(e) => e.currentTarget.style.backgroundColor = accentColor; e.currentTarget.style.filter = 'brightness(1.1)'}
-							onmouseleave={(e) => e.currentTarget.style.backgroundColor = accentColor}
+							onmouseenter={brightenBg}
+							onmouseleave={resetBg}
 						>
 							share palette
 						</button>
@@ -305,8 +330,8 @@
 									onclick={() => handleExport(fmt)}
 									class="rounded-md border py-2 text-xs uppercase tracking-wider cursor-pointer"
 									style="border-color: var(--border); color: var(--text-secondary);"
-									onmouseenter={(e) => e.currentTarget.style.borderColor = accentColor}}
-									onmouseleave={(e) => e.currentTarget.style.borderColor = "var(--border)"}}
+									onmouseenter={brightenBorder}
+									onmouseleave={resetBorder}
 								>
 									{fmt === 'ase' ? '.ase' : fmt}
 								</button>
@@ -324,8 +349,8 @@
 										onclick={() => copyColor(color.hex)}
 										class="flex w-full items-center gap-3 rounded-md px-2 py-1.5 cursor-pointer"
 										style="background-color: {copiedHex === color.hex ? accentSubtle : 'transparent'};"
-										onmouseenter={(e) => e.currentTarget.style.backgroundColor = accentSubtle}
-										onmouseleave={(e) => e.currentTarget.style.backgroundColor = copiedHex === color.hex ? accentSubtle : 'transparent'}
+										onmouseenter={setSubtleBg}
+										onmouseleave={clearSubtleBg}
 									>
 										<div
 											class="h-6 w-6 shrink-0 rounded"

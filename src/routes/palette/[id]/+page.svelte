@@ -13,6 +13,14 @@
 	const colors: ExtractedColor[] = palette.colors;
 
 	let copiedHex = $state('');
+	let accentColor = $derived('#b8a080'); // static on shared page since we don't extract colors
+
+	function brightenBorder(e: MouseEvent) {
+		(e.currentTarget as HTMLElement).style.borderColor = accentColor;
+	}
+	function resetBorder(e: MouseEvent) {
+		(e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+	}
 
 	function copyColor(hex: string) {
 		navigator.clipboard.writeText(hex);
@@ -60,7 +68,7 @@
 				href="/"
 				class="text-xs"
 				style="color: var(--text-muted);"
-				onmouseenter={(e) => e.currentTarget.style.color = 'var(--accent)'}
+				onmouseenter={(e) => e.currentTarget.style.color = accentColor}
 				onmouseleave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
 			>
 				← generate your own
@@ -148,7 +156,7 @@
 					onclick={() => handleExport(fmt)}
 					class="rounded-md border px-2.5 py-1.5 text-xs uppercase tracking-wider cursor-pointer"
 					style="border-color: var(--border); color: var(--text-secondary);"
-					onmouseenter={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+					onmouseenter={brightenBorder}
 					onmouseleave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
 				>
 					{fmt === 'ase' ? '.ase' : fmt}
