@@ -9,10 +9,10 @@
  */
 
 import { neon } from '@neondatabase/serverless';
-import { DATABASE_URL } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 /** Get a SQL tagged template function connected to our Neon database */
-const sql = neon(DATABASE_URL);
+const sql = neon(env.DATABASE_URL || '');
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

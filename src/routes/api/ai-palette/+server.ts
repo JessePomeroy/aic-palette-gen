@@ -10,11 +10,12 @@
  */
 
 import type { RequestHandler } from './$types';
-import { GEMINI_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const { imageUrl, count = 6 } = await request.json();
+		const GEMINI_API_KEY = env.GEMINI_API_KEY;
 
 		if (!imageUrl) {
 			return new Response(JSON.stringify({ error: 'Missing imageUrl' }), {
