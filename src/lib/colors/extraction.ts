@@ -34,7 +34,7 @@ export interface ExtractedColor {
 }
 
 /** Which extraction algorithm to use */
-export type ExtractionMode = 'dominant' | 'vibrant';
+export type ExtractionMode = 'dominant' | 'vibrant' | 'ai';
 
 /**
  * Main entry point: extract a color palette from an image URL.
