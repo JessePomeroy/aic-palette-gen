@@ -218,8 +218,9 @@
             if (!res.ok) throw new Error("Failed to save");
             const { url } = await res.json();
 
-            // Try Web Share API first (better mobile support), fallback to clipboard
-            if (navigator.share) {
+            // Mobile: use Web Share API, Desktop: use clipboard
+            const isMobile = 'ontouchstart' in window && navigator.share;
+            if (isMobile) {
                 await navigator.share({ title: "Chroma Collection", url });
                 shareStatus = "shared";
             } else {
