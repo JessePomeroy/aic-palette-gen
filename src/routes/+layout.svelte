@@ -1,8 +1,12 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import { analytics } from '$lib/analytics';
 
 	let { children } = $props();
+
+	// Initialize Vercel analytics
+	analytics();
 </script>
 
 <svelte:head>
