@@ -1,42 +1,47 @@
-# sv
+# aic-palette-gen
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+A web app that extracts color palettes from artworks in the [Art Institute of Chicago](https://www.artic.edu/) collection.
 
-## Creating a project
+Browse, search, or randomize through 130k+ artworks and generate downloadable color palettes for your creative projects.
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Features
 
-```sh
-# create a new project
-npx sv create my-app
-```
+- **Search & Random** — find artworks by keyword or discover random pieces
+- **Color Extraction** — dominant (by brightness) and vibrant (by saturation) modes
+- **Adjustable Palette** — 5 to 8 colors per palette
+- **Export** — JSON, CSS variables, PNG swatch strip, Adobe .ASE
+- **Shareable Links** — save palettes to a database and share via short URL
 
-To recreate this project with the same configuration:
+## Stack
 
-```sh
-# recreate this project
-npx sv@0.12.4 create --template minimal --types ts --install npm aic-palette-gen
-```
+- [SvelteKit](https://svelte.dev/) + [Tailwind 4](https://tailwindcss.com/)
+- [Art Institute of Chicago API](https://api.artic.edu/docs/) (public, no auth)
+- Canvas API + k-means clustering for color extraction
+- [Neon](https://neon.tech/) (serverless Postgres) for shareable palette links
 
-## Developing
+## Setup
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+```bash
+# install dependencies
+npm install
 
-```sh
+# set up environment
+cp .env.example .env
+# add your Neon DATABASE_URL to .env
+
+# initialize the database
+npx tsx scripts/init-db.ts
+
+# start dev server
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
 ```
 
-## Building
+## Environment Variables
 
-To create a production version of your app:
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Neon Postgres connection string |
 
-```sh
-npm run build
-```
+## License
 
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+MIT
