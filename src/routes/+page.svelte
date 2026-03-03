@@ -114,15 +114,15 @@
 
 			if (!res.ok) {
 				// Show the server's error message — includes rate limit info, image access errors, etc.
-				aiDescription = data.error || 'Failed to generate AI palette. Try again.';
+				aiDescription = data.error || 'Failed to generate palette. Try again.';
 				return;
 			}
 
 			colors = data.colors;
 			aiDescription = data.description;
 		} catch (e) {
-			console.error('AI palette failed:', e);
-			aiDescription = 'Failed to generate AI palette. Try again.';
+			console.error('Tone palette failed:', e);
+			aiDescription = 'Failed to generate palette. Try again.';
 		} finally {
 			aiLoading = false;
 		}
