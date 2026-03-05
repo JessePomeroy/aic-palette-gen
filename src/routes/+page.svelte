@@ -442,7 +442,7 @@
                             class="mb-3 text-xs font-medium tracking-wider uppercase"
                             style="color: var(--text-muted);"
                         >
-                            export
+                            save
                         </h3>
                         <div class="grid grid-cols-2 gap-2">
                             {#each ["json", "css", "png", "ase"] as fmt}
@@ -657,7 +657,6 @@
 
                     <!-- share + save (mobile) -->
                     <div class="flex flex-wrap items-center gap-2 lg:hidden">
-                        <span class="text-xs mr-1" style="color: var(--text-muted);">save:</span>
                         <button
                             onclick={handleShare}
                             class="rounded-md px-3 py-1.5 text-sm cursor-pointer"
