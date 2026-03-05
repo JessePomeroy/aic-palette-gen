@@ -396,10 +396,10 @@
                     class="rounded-md px-2 py-2 text-sm cursor-pointer"
                     style="border: 1px solid var(--border);"
                 >
-                    <option value={5}>5</option>
-                    <option value={6}>6</option>
-                    <option value={7}>7</option>
-                    <option value={8}>8</option>
+                    <option value={5}>5 colors</option>
+                    <option value={6}>6 colors</option>
+                    <option value={7}>7 colors</option>
+                    <option value={8}>8 colors</option>
                 </select>
 
                 <select
