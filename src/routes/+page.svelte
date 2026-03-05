@@ -315,7 +315,7 @@
     <main class="mx-auto flex max-w-screen-2xl flex-col lg:flex-row">
         <!-- ── controls ── -->
         <aside
-            class="order-1 border-b p-4 sm:p-5 lg:order-2 lg:w-96 lg:border-b-0 lg:border-l"
+            class="order-1 border-b p-4 sm:p-5 lg:order-2 lg:w-72 lg:border-b-0 lg:border-l"
             style="border-color: var(--border); background-color: var(--bg-secondary);"
         >
             <!-- search -->
