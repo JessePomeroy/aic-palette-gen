@@ -236,7 +236,7 @@
             const { url } = await res.json();
 
             // Mobile: use Web Share API, Desktop: use clipboard
-            const isMobile = 'ontouchstart' in window && navigator.share;
+            const isMobile = "ontouchstart" in window && navigator.share;
             if (isMobile) {
                 await navigator.share({ title: "Chroma Collection", url });
                 shareStatus = "shared";
@@ -315,7 +315,7 @@
     <main class="mx-auto flex max-w-screen-2xl flex-col lg:flex-row">
         <!-- ── controls ── -->
         <aside
-            class="order-1 border-b p-4 sm:p-5 lg:order-2 lg:w-81 lg:border-b-0 lg:border-l"
+            class="order-1 border-b p-4 sm:p-5 lg:order-2 lg:w-81.5 lg:border-b-0 lg:border-l"
             style="border-color: var(--border); background-color: var(--bg-secondary);"
         >
             <!-- search -->
@@ -346,7 +346,10 @@
 
             <!-- search results dropdown -->
             {#if showResults && searchResults.length > 0}
-                <div class="mb-5 rounded-md border overflow-hidden" style="border-color: var(--border); max-height: 300px; overflow-y: auto;">
+                <div
+                    class="mb-5 rounded-md border overflow-hidden"
+                    style="border-color: var(--border); max-height: 300px; overflow-y: auto;"
+                >
                     {#each searchResults as result}
                         <button
                             type="button"
@@ -356,14 +359,24 @@
                         >
                             {#if result.thumbnail}
                                 <img
-                                    src={getImageUrl(result.thumbnail.alt_text ? result.image_id! : "", "thumb")}
+                                    src={getImageUrl(
+                                        result.thumbnail.alt_text
+                                            ? result.image_id!
+                                            : "",
+                                        "thumb",
+                                    )}
                                     alt=""
                                     class="h-10 w-10 object-cover rounded-sm"
                                 />
                             {/if}
                             <div class="min-w-0 flex-1">
                                 <p class="truncate text-sm">{result.title}</p>
-                                <p class="truncate text-xs" style="color: var(--text-secondary);">{result.artist_display}</p>
+                                <p
+                                    class="truncate text-xs"
+                                    style="color: var(--text-secondary);"
+                                >
+                                    {result.artist_display}
+                                </p>
                             </div>
                         </button>
                     {/each}
