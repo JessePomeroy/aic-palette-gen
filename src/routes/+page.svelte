@@ -655,8 +655,9 @@
                         {/if}
                     </div>
 
-                    <!-- share + export (mobile) -->
+                    <!-- share + save (mobile) -->
                     <div class="flex flex-wrap items-center gap-2 lg:hidden">
+                        <span class="text-xs mr-1" style="color: var(--text-muted);">save:</span>
                         <button
                             onclick={handleShare}
                             class="rounded-md px-3 py-1.5 text-sm cursor-pointer"
