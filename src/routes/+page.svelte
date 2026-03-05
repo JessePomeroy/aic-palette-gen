@@ -33,6 +33,8 @@
     let colors = $state<ExtractedColor[]>([]);
     let loading = $state(false);
     let searchQuery = $state("");
+    let searchResults = $state<Artwork[]>([]);
+    let showResults = $state(false);
     let colorCount = $state(5);
     let extractionMode = $state<ExtractionMode>("dominant");
     let shareStatus = $state("");
@@ -126,30 +128,45 @@
 
     async function handleSearch() {
         if (!searchQuery.trim()) return;
-        loading = true;
-        aiDescription = "";
-        extractionMode = "dominant";
+        searchResults = [];
+        showResults = false;
         try {
-            const result = await searchArtworks({ q: searchQuery, limit: 10 });
-            for (const a of result.data) {
-                if (a.image_id) {
-                    artwork = a;
-                    await tick();
-                    const extracted = await extractColors(
-                        getImageUrl(artwork.image_id, "large"),
-                        extractionMode,
-                        colorCount,
-                    );
-                    if (extracted.length > 0) {
-                        colors = extracted;
-                        break;
-                    }
-                }
+            const result = await searchArtworks({ q: searchQuery, limit: 20 });
+            // Filter to only artworks with images
+            searchResults = result.data.filter((a: Artwork) => a.image_id);
+            if (searchResults.length > 0) {
+                showResults = true;
             }
         } catch (e) {
             console.error("Search failed:", e);
         }
+    }
+
+    async function selectResult(a: Artwork) {
+        showResults = false;
+        searchQuery = "";
+        loading = true;
+        aiDescription = "";
+        extractionMode = "dominant";
+        artwork = a;
+        await tick();
+        try {
+            const extracted = await extractColors(
+                getImageUrl(artwork.image_id, "large"),
+                extractionMode,
+                colorCount,
+            );
+            if (extracted.length > 0) {
+                colors = extracted;
+            }
+        } catch (e) {
+            console.error("Failed to load:", e);
+        }
         loading = false;
+    }
+
+    function closeResults() {
+        showResults = false;
     }
 
     async function regeneratePalette() {
@@ -326,6 +343,40 @@
                     search
                 </button>
             </form>
+
+            <!-- search results dropdown -->
+            {#if showResults && searchResults.length > 0}
+                <div class="mb-5 rounded-md border overflow-hidden" style="border-color: var(--border); max-height: 300px; overflow-y: auto;">
+                    {#each searchResults as result}
+                        <button
+                            type="button"
+                            onclick={() => selectResult(result)}
+                            class="flex w-full items-center gap-3 p-2 text-left hover:opacity-80 transition-opacity"
+                            style="border-bottom: 1px solid var(--border);"
+                        >
+                            {#if result.thumbnail}
+                                <img
+                                    src={getImageUrl(result.thumbnail.alt_text ? result.image_id! : "", "thumb")}
+                                    alt=""
+                                    class="h-10 w-10 object-cover rounded-sm"
+                                />
+                            {/if}
+                            <div class="min-w-0 flex-1">
+                                <p class="truncate text-sm">{result.title}</p>
+                                <p class="truncate text-xs" style="color: var(--text-secondary);">{result.artist_display}</p>
+                            </div>
+                        </button>
+                    {/each}
+                </div>
+                <button
+                    type="button"
+                    onclick={closeResults}
+                    class="mb-3 text-xs underline"
+                    style="color: var(--text-secondary);"
+                >
+                    close
+                </button>
+            {/if}
 
             <!-- controls row -->
             <div class="mb-5 flex items-center gap-2">
