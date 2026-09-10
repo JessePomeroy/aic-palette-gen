@@ -2,17 +2,18 @@
  * Color Extraction Module
  *
  * Extracts dominant colors from artwork images using the browser's Canvas API
- * and k-means clustering. Runs entirely client-side — no server or native deps.
+ * and k-means clustering. Pixel processing runs client-side; image bytes come
+ * through the app's same-origin proxy so extraction does not depend on IIIF CORS.
  *
  * Two extraction modes:
  * - Dominant: clusters sorted by brightness (light → dark) — best for overall palette
  * - Vibrant:  clusters sorted by saturation (vivid → muted) — best for punchy accents
  *
  * Both modes use the same k-means algorithm; only the final sort order differs.
- * TODO: Reintegrate node-vibrant/browser for vibrant mode (better results, CORS is fixed now)
+ * TODO: Reintegrate node-vibrant/browser for vibrant mode (better results)
  *
  * Pipeline:
- * 1. Fetch image via fetch() with no-cache (avoids opaque cache issues)
+ * 1. Fetch image through the same-origin image proxy
  * 2. Load into an <img> element from a blob URL
  * 3. Draw to a downscaled canvas (max 100px) for performance
  * 4. Read pixel data via getImageData()
@@ -20,9 +21,6 @@
  * 6. Run k-means clustering to find dominant color groups
  * 7. Sort by brightness or saturation depending on mode
  *
- * CORS note: The <img> tag in the main page MUST have crossorigin="anonymous",
- * otherwise the browser caches an opaque response for the image URL, and this
- * module's fetch() call will fail with ERR_FAILED when it hits that cache entry.
  */
 
 /** A single extracted color with multiple format representations */
@@ -50,10 +48,8 @@ export async function extractColors(
 	count: number
 ): Promise<ExtractedColor[]> {
 	try {
-		// Fetch with no-cache to avoid stale opaque responses from the browser cache.
-		// The <img> tag on the page might have cached this URL without CORS headers,
-		// which would cause fetch() to fail if it hits that cached entry.
-		const res = await fetch(imageUrl, { cache: 'no-cache' });
+		const proxyUrl = `/api/image?${new URLSearchParams({ url: imageUrl })}`;
+		const res = await fetch(proxyUrl);
 		if (!res.ok) throw new Error('Failed to fetch image');
 
 		// Convert to blob → object URL so we can load it in an <img> element

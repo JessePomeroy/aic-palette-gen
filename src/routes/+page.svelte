@@ -98,6 +98,7 @@
 
     async function loadRandom() {
         loading = true;
+        colors = [];
         aiDescription = "";
         // Always start with dominant mode on new artwork — tone requires explicit selection
         extractionMode = "dominant";
@@ -105,6 +106,8 @@
             for (let i = 0; i < 10; i++) {
                 artwork = await getRandomArtwork();
                 if (artwork?.image_id) {
+                    // The artwork can render while its palette is extracted separately.
+                    loading = false;
                     await tick();
                     const extracted = await extractColors(
                         getImageUrl(artwork.image_id, "large"),
@@ -118,12 +121,14 @@
                     console.warn(
                         `Image for "${artwork.title}" not accessible, trying another...`,
                     );
+                    if (i < 9) loading = true;
                 }
             }
         } catch (e) {
             console.error("Failed to load artwork:", e);
+        } finally {
+            loading = false;
         }
-        loading = false;
     }
 
     async function handleSearch() {
@@ -146,9 +151,12 @@
         showResults = false;
         searchQuery = "";
         loading = true;
+        colors = [];
         aiDescription = "";
         extractionMode = "dominant";
         artwork = a;
+        // Do not hide the selected artwork while its palette is generated.
+        loading = false;
         await tick();
         try {
             const extracted = await extractColors(
@@ -162,7 +170,6 @@
         } catch (e) {
             console.error("Failed to load:", e);
         }
-        loading = false;
     }
 
     function closeResults() {
@@ -546,7 +553,6 @@
                 <div class="mb-6 sm:mb-8">
                     {#if artwork.image_id}
                         <img
-                            crossorigin="anonymous"
                             src={getImageUrl(artwork.image_id, "large")}
                             alt={artwork.thumbnail?.alt_text || artwork.title}
                             class="artwork-image w-full rounded-lg sm:w-auto sm:max-h-[65vh]"

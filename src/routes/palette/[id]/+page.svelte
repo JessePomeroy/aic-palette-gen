@@ -82,7 +82,6 @@
 			<div class="mb-6 sm:mb-8">
 				{#if artwork.image_id}
 					<img
-						crossorigin="anonymous"
 						src={getImageUrl(artwork.image_id, 'large')}
 						alt={artwork.thumbnail?.alt_text || artwork.title}
 						class="artwork-image w-full rounded-lg sm:w-auto sm:max-h-[65vh]"
