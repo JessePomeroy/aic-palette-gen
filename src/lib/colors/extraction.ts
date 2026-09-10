@@ -2,8 +2,8 @@
  * Color Extraction Module
  *
  * Extracts dominant colors from artwork images using the browser's Canvas API
- * and k-means clustering. Pixel processing runs client-side; image bytes come
- * through the app's same-origin proxy so extraction does not depend on IIIF CORS.
+ * and k-means clustering. Image loading tries the browser first, with a
+ * same-origin fallback when the IIIF response cannot be read through CORS.
  *
  * Two extraction modes:
  * - Dominant: clusters sorted by brightness (light → dark) — best for overall palette
@@ -13,7 +13,7 @@
  * TODO: Reintegrate node-vibrant/browser for vibrant mode (better results)
  *
  * Pipeline:
- * 1. Fetch image through the same-origin image proxy
+ * 1. Fetch image directly, falling back to the same-origin image proxy
  * 2. Load into an <img> element from a blob URL
  * 3. Draw to a downscaled canvas (max 100px) for performance
  * 4. Read pixel data via getImageData()
@@ -25,14 +25,35 @@
 
 /** A single extracted color with multiple format representations */
 export interface ExtractedColor {
-	hex: string;                                    // e.g. "#a83f2e"
-	rgb: { r: number; g: number; b: number };       // 0-255 per channel
-	hsl: { h: number; s: number; l: number };       // h: 0-360, s/l: 0-100
-	name?: string;                                  // Optional descriptive name
+	hex: string; // e.g. "#a83f2e"
+	rgb: { r: number; g: number; b: number }; // 0-255 per channel
+	hsl: { h: number; s: number; l: number }; // h: 0-360, s/l: 0-100
+	name?: string; // Optional descriptive name
 }
 
 /** Which extraction algorithm to use */
-export type ExtractionMode = 'dominant' | 'vibrant' | 'ai';
+export type ExtractionMode = "dominant" | "vibrant" | "ai";
+
+export async function fetchImageBlob(imageUrl: string): Promise<Blob> {
+	const proxyUrl = `/api/image?${new URLSearchParams({ url: imageUrl })}`;
+	for (const url of [imageUrl, proxyUrl]) {
+		try {
+			const response = await fetch(url, {
+				cache: "no-cache",
+				signal: AbortSignal.timeout(15000),
+			});
+			if (
+				!response.ok ||
+				!response.headers.get("content-type")?.startsWith("image/")
+			)
+				continue;
+			return await response.blob();
+		} catch {
+			// AIC may allow a browser while rejecting a server, or vice versa.
+		}
+	}
+	throw new Error("Image could not be loaded directly or through the proxy");
+}
 
 /**
  * Main entry point: extract a color palette from an image URL.
@@ -45,21 +66,17 @@ export type ExtractionMode = 'dominant' | 'vibrant' | 'ai';
 export async function extractColors(
 	imageUrl: string,
 	mode: ExtractionMode,
-	count: number
+	count: number,
 ): Promise<ExtractedColor[]> {
 	try {
-		const proxyUrl = `/api/image?${new URLSearchParams({ url: imageUrl })}`;
-		const res = await fetch(proxyUrl);
-		if (!res.ok) throw new Error('Failed to fetch image');
-
 		// Convert to blob → object URL so we can load it in an <img> element
 		// (Canvas needs an HTMLImageElement to drawImage)
-		const blob = await res.blob();
+		const blob = await fetchImageBlob(imageUrl);
 		const blobUrl = URL.createObjectURL(blob);
 
 		return new Promise((resolve) => {
 			const img = new Image();
-			img.crossOrigin = 'anonymous';
+			img.crossOrigin = "anonymous";
 
 			img.onload = () => {
 				URL.revokeObjectURL(blobUrl);
@@ -69,14 +86,14 @@ export async function extractColors(
 
 			img.onerror = () => {
 				URL.revokeObjectURL(blobUrl);
-				console.error('Failed to load image from blob URL');
+				console.error("Failed to load image from blob URL");
 				resolve([]);
 			};
 
 			img.src = blobUrl;
 		});
 	} catch (e) {
-		console.error('Color extraction failed:', e);
+		console.error("Color extraction failed:", e);
 		return [];
 	}
 }
@@ -88,9 +105,13 @@ export async function extractColors(
  * color extraction doesn't need full resolution, and k-means on 10k pixels
  * is much faster than on 1M pixels.
  */
-function processImage(img: HTMLImageElement, count: number, mode: ExtractionMode): ExtractedColor[] {
-	const canvas = document.createElement('canvas');
-	const ctx = canvas.getContext('2d');
+function processImage(
+	img: HTMLImageElement,
+	count: number,
+	mode: ExtractionMode,
+): ExtractedColor[] {
+	const canvas = document.createElement("canvas");
+	const ctx = canvas.getContext("2d");
 	if (!ctx) return [];
 
 	// Scale down to max 100px for performance (color extraction doesn't need full res)
@@ -136,7 +157,7 @@ function processImage(img: HTMLImageElement, count: number, mode: ExtractionMode
 	// Sort results based on extraction mode:
 	// - Dominant: light → dark (by lightness) — shows the full tonal range
 	// - Vibrant:  vivid → muted (by saturation) — highlights the most colorful parts
-	if (mode === 'vibrant') {
+	if (mode === "vibrant") {
 		results.sort((a, b) => b.hsl.s - a.hsl.s);
 	} else {
 		results.sort((a, b) => b.hsl.l - a.hsl.l);
@@ -165,7 +186,7 @@ function kMeans(pixels: number[][], k: number): number[][] {
 	if (pixels.length === 0) return [];
 
 	// Initialize centroids by picking k random unique pixels
-	let centroids: number[][] = [];
+	const centroids: number[][] = [];
 	const used = new Set<number>();
 
 	while (centroids.length < k) {
@@ -201,9 +222,15 @@ function kMeans(pixels: number[][], k: number): number[][] {
 		for (let i = 0; i < k; i++) {
 			if (clusters[i].length > 0) {
 				centroids[i] = [
-					Math.round(clusters[i].reduce((s, p) => s + p[0], 0) / clusters[i].length),
-					Math.round(clusters[i].reduce((s, p) => s + p[1], 0) / clusters[i].length),
-					Math.round(clusters[i].reduce((s, p) => s + p[2], 0) / clusters[i].length)
+					Math.round(
+						clusters[i].reduce((s, p) => s + p[0], 0) / clusters[i].length,
+					),
+					Math.round(
+						clusters[i].reduce((s, p) => s + p[1], 0) / clusters[i].length,
+					),
+					Math.round(
+						clusters[i].reduce((s, p) => s + p[2], 0) / clusters[i].length,
+					),
 				];
 			}
 		}
@@ -217,9 +244,7 @@ function kMeans(pixels: number[][], k: number): number[][] {
 /** Euclidean distance between two colors in RGB space */
 function colorDistance(a: number[], b: number[]): number {
 	return Math.sqrt(
-		Math.pow(a[0] - b[0], 2) +
-		Math.pow(a[1] - b[1], 2) +
-		Math.pow(a[2] - b[2], 2)
+		(a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2,
 	);
 }
 
@@ -228,20 +253,24 @@ function colorFromRgb(r: number, g: number, b: number): ExtractedColor {
 	return {
 		hex: rgbToHex(r, g, b),
 		rgb: { r, g, b },
-		hsl: rgbToHsl(r, g, b)
+		hsl: rgbToHsl(r, g, b),
 	};
 }
 
 /** Convert RGB (0-255) to hex string (e.g. "#ff8800") */
 function rgbToHex(r: number, g: number, b: number): string {
-	return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+	return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
 /**
  * Convert RGB (0-255) to HSL.
  * Returns h: 0-360 (degrees), s: 0-100 (percent), l: 0-100 (percent).
  */
-function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+function rgbToHsl(
+	r: number,
+	g: number,
+	b: number,
+): { h: number; s: number; l: number } {
 	// Normalize to 0-1
 	r /= 255;
 	g /= 255;
@@ -273,6 +302,6 @@ function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: n
 	return {
 		h: Math.round(h * 360),
 		s: Math.round(s * 100),
-		l: Math.round(l * 100)
+		l: Math.round(l * 100),
 	};
 }

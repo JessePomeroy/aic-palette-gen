@@ -7,7 +7,6 @@
 
 <script lang="ts">
     import { onMount } from "svelte";
-    import { tick } from "svelte";
     import {
         searchArtworks,
         getRandomArtwork,
@@ -41,6 +40,11 @@
     let aiDescription = $state("");
     let aiLoading = $state(false);
     let copiedHex = $state("");
+    let paletteError = $state("");
+    let paletteLoading = $state(false);
+    let artworkRequest = 0;
+    let paletteRequest = 0;
+    const exportFormats = ["json", "css", "png", "ase"] as const;
 
     // ── derived: pick the most vibrant color as the dynamic accent ──
     let accentColor = $derived.by(() => {
@@ -97,6 +101,10 @@
     // ── data loading ──
 
     async function loadRandom() {
+        const request = ++artworkRequest;
+        ++paletteRequest;
+        paletteLoading = false;
+        paletteError = "";
         loading = true;
         colors = [];
         aiDescription = "";
@@ -104,30 +112,19 @@
         extractionMode = "dominant";
         try {
             for (let i = 0; i < 10; i++) {
-                artwork = await getRandomArtwork();
-                if (artwork?.image_id) {
-                    // The artwork can render while its palette is extracted separately.
+                const candidate = await getRandomArtwork();
+                if (request !== artworkRequest) return;
+                if (candidate?.image_id) {
+                    artwork = candidate;
                     loading = false;
-                    await tick();
-                    const extracted = await extractColors(
-                        getImageUrl(artwork.image_id, "large"),
-                        extractionMode,
-                        colorCount,
-                    );
-                    if (extracted.length > 0) {
-                        colors = extracted;
-                        break;
-                    }
-                    console.warn(
-                        `Image for "${artwork.title}" not accessible, trying another...`,
-                    );
-                    if (i < 9) loading = true;
+                    await regeneratePalette();
+                    return;
                 }
             }
         } catch (e) {
             console.error("Failed to load artwork:", e);
         } finally {
-            loading = false;
+            if (request === artworkRequest) loading = false;
         }
     }
 
@@ -148,6 +145,7 @@
     }
 
     async function selectResult(a: Artwork) {
+        ++artworkRequest;
         showResults = false;
         searchQuery = "";
         loading = true;
@@ -157,19 +155,7 @@
         artwork = a;
         // Do not hide the selected artwork while its palette is generated.
         loading = false;
-        await tick();
-        try {
-            const extracted = await extractColors(
-                getImageUrl(artwork.image_id, "large"),
-                extractionMode,
-                colorCount,
-            );
-            if (extracted.length > 0) {
-                colors = extracted;
-            }
-        } catch (e) {
-            console.error("Failed to load:", e);
-        }
+        await regeneratePalette();
     }
 
     function closeResults() {
@@ -177,20 +163,29 @@
     }
 
     async function regeneratePalette() {
+        const request = ++paletteRequest;
+        paletteError = "";
+        paletteLoading = false;
+        aiLoading = false;
         if (!artwork?.image_id) return;
         if (extractionMode === "ai") {
-            await fetchAiPalette();
+            await fetchAiPalette(request);
         } else {
             aiDescription = "";
-            colors = await extractColors(
+            paletteLoading = true;
+            const extracted = await extractColors(
                 getImageUrl(artwork.image_id, "large"),
                 extractionMode,
                 colorCount,
             );
+            if (request !== paletteRequest) return;
+            colors = extracted;
+            paletteLoading = false;
+            if (!colors.length) paletteError = "Could not generate this palette. Please try again.";
         }
     }
 
-    async function fetchAiPalette() {
+    async function fetchAiPalette(request: number) {
         if (!artwork?.image_id) return;
         aiLoading = true;
         try {
@@ -203,6 +198,7 @@
                 }),
             });
             const data = await res.json();
+            if (request !== paletteRequest) return;
             if (!res.ok) {
                 aiDescription =
                     data.error || "Failed to generate palette. Try again.";
@@ -211,10 +207,11 @@
             colors = data.colors;
             aiDescription = data.description;
         } catch (e) {
+            if (request !== paletteRequest) return;
             console.error("Tone palette failed:", e);
             aiDescription = "Failed to generate palette. Try again.";
         } finally {
-            aiLoading = false;
+            if (request === paletteRequest) aiLoading = false;
         }
     }
 
@@ -465,7 +462,7 @@
                             save
                         </h3>
                         <div class="grid grid-cols-2 gap-2">
-                            {#each ["json", "css", "png", "ase"] as fmt}
+                            {#each exportFormats as fmt}
                                 <button
                                     onclick={() => handleExport(fmt)}
                                     class="rounded-md border py-2 text-xs uppercase tracking-wider cursor-pointer"
@@ -595,6 +592,14 @@
                 </div>
 
                 <!-- ai loading -->
+                {#if paletteLoading}
+                    <p role="status" class="mb-6 text-sm">Generating palette…</p>
+                {:else if paletteError}
+                    <p role="status" class="mb-6 text-sm">
+                        {paletteError}
+                        <button class="underline cursor-pointer" onclick={regeneratePalette}>Retry palette</button>
+                    </p>
+                {/if}
                 {#if aiLoading}
                     <div
                         class="mb-6 rounded-lg p-4"
@@ -691,7 +696,7 @@
                             >
                         {/if}
                         <span style="color: var(--border);">·</span>
-                        {#each ["json", "css", "png", "ase"] as fmt}
+                        {#each exportFormats as fmt}
                             <button
                                 onclick={() => handleExport(fmt)}
                                 class="rounded-md border px-2.5 py-1.5 text-xs uppercase cursor-pointer"

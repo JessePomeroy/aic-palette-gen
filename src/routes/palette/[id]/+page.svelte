@@ -9,8 +9,9 @@
 	import type { ExtractedColor } from '$lib/colors/extraction';
 
 	let { data } = $props();
-	const { artwork, palette } = data;
-	const colors: ExtractedColor[] = palette.colors;
+	let { artwork, palette } = $derived(data);
+	let colors: ExtractedColor[] = $derived(palette.colors);
+	const exportFormats = ['json', 'css', 'png', 'ase'] as const;
 
 	let copiedHex = $state('');
 	let accentColor = $derived('#b8a080'); // static on shared page since we don't extract colors
@@ -150,7 +151,7 @@
 				{palette.count} colors · {palette.mode}
 			</span>
 			<span style="color: var(--border);">·</span>
-			{#each ['json', 'css', 'png', 'ase'] as fmt}
+			{#each exportFormats as fmt}
 				<button
 					onclick={() => handleExport(fmt)}
 					class="rounded-md border px-2.5 py-1.5 text-xs uppercase tracking-wider cursor-pointer"
