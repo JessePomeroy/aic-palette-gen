@@ -2,67 +2,63 @@
  * AI Palette Endpoint — uses Google Gemini to analyze artwork mood/tone
  * and suggest a curated color palette.
  *
- * POST /api/ai-palette
- *   Body: { imageUrl: string, count: number }
+ * POST /api/ai-palette?count=5
+ *   Body: JPEG bytes loaded by the browser (maximum 1 MB)
  *   Returns: { description: string, colors: ExtractedColor[] }
  *
  * The Gemini API key is kept server-side — never exposed to the client.
  */
 
-import type { RequestHandler } from './$types';
-import { env } from '$env/dynamic/private';
+import { env } from "$env/dynamic/private";
+import { readToneImage } from "$lib/server/tone-image";
+import type { RequestHandler } from "./$types";
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, url }) => {
+	const count = Number(url.searchParams.get("count") ?? "6");
+	if (!Number.isInteger(count) || count < 5 || count > 8) {
+		return Response.json(
+			{ error: "Color count must be between 5 and 8" },
+			{ status: 400 },
+		);
+	}
+	let imageBuffer: Buffer;
 	try {
-		const { imageUrl, count = 6 } = await request.json();
+		imageBuffer = await readToneImage(request);
+	} catch (error) {
+		return Response.json(
+			{ error: error instanceof Error ? error.message : "Invalid image" },
+			{ status: 400 },
+		);
+	}
+	try {
 		const GEMINI_API_KEY = env.GEMINI_API_KEY;
 
-		if (!imageUrl) {
-			return new Response(JSON.stringify({ error: 'Missing imageUrl' }), {
-				status: 400,
-				headers: { 'Content-Type': 'application/json' }
-			});
-		}
-
 		if (!GEMINI_API_KEY) {
-			return new Response(JSON.stringify({ error: 'Gemini API key not configured' }), {
-				status: 500,
-				headers: { 'Content-Type': 'application/json' }
-			});
+			return new Response(
+				JSON.stringify({ error: "Gemini API key not configured" }),
+				{
+					status: 500,
+					headers: { "Content-Type": "application/json" },
+				},
+			);
 		}
 
-		// Fetch the image as base64 for Gemini's inline_data format
-		// Include browser-like headers — IIIF server may reject bare server-side fetches
-		const imageRes = await fetch(imageUrl, {
-			headers: {
-				'Accept': 'image/jpeg,image/png,image/*',
-				'User-Agent': 'Mozilla/5.0 (compatible; aic-palette-gen)',
-				'Referer': 'https://www.artic.edu/'
-			}
-		});
-		if (!imageRes.ok) {
-			console.error(`Image fetch failed: ${imageRes.status} ${imageRes.statusText} for ${imageUrl}`);
-			return new Response(JSON.stringify({ error: `Image not accessible (${imageRes.status})` }), {
-				status: 502,
-				headers: { 'Content-Type': 'application/json' }
-			});
-		}
-		const imageBuffer = await imageRes.arrayBuffer();
-		const base64Image = Buffer.from(imageBuffer).toString('base64');
-		const mimeType = imageRes.headers.get('content-type') || 'image/jpeg';
+		const base64Image = imageBuffer.toString("base64");
+		const mimeType = "image/jpeg";
 
 		// Call Gemini API with vision — retry on 429 (free tier rate limits)
 		const geminiBody = JSON.stringify({
-			contents: [{
-				parts: [
-					{
-						inline_data: {
-							mime_type: mimeType,
-							data: base64Image
-						}
-					},
-					{
-						text: `You are an art critic and color expert. Analyze this artwork and respond with ONLY valid JSON (no markdown, no code fences, no extra text).
+			contents: [
+				{
+					parts: [
+						{
+							inline_data: {
+								mime_type: mimeType,
+								data: base64Image,
+							},
+						},
+						{
+							text: `You are an art critic and color expert. Analyze this artwork and respond with ONLY valid JSON (no markdown, no code fences, no extra text).
 
 The JSON must have this exact structure:
 {
@@ -72,10 +68,11 @@ The JSON must have this exact structure:
   ]
 }
 
-Suggest exactly ${count} colors that capture the emotional feeling of the artwork — not just the literal colors present, but colors that evoke the same mood. Each color should have a poetic or descriptive name (e.g. "twilight amber", "melancholy blue").`
-					}
-				]
-			}]
+Suggest exactly ${count} colors that capture the emotional feeling of the artwork — not just the literal colors present, but colors that evoke the same mood. Each color should have a poetic or descriptive name (e.g. "twilight amber", "melancholy blue").`,
+						},
+					],
+				},
+			],
 		});
 
 		// Retry up to 3 times on 429 (free tier rate limits)
@@ -84,42 +81,50 @@ Suggest exactly ${count} colors that capture the emotional feeling of the artwor
 			geminiRes = await fetch(
 				`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`,
 				{
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: geminiBody
-				}
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: geminiBody,
+				},
 			);
 
 			if (geminiRes.status !== 429) break;
 
 			// Wait before retrying — exponential backoff: 5s, 15s, 30s
 			const waitMs = [5000, 15000, 30000][attempt];
-			console.log(`Gemini 429 rate limited, retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/3)`);
-			await new Promise(r => setTimeout(r, waitMs));
+			console.log(
+				`Gemini 429 rate limited, retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/3)`,
+			);
+			await new Promise((r) => setTimeout(r, waitMs));
 		}
 
 		if (!geminiRes || !geminiRes.ok) {
-			const errText = geminiRes ? await geminiRes.text() : 'No response';
-			console.error('Gemini API error:', errText);
+			const errText = geminiRes ? await geminiRes.text() : "No response";
+			console.error("Gemini API error:", errText);
 			const isRateLimit = geminiRes?.status === 429;
-			return new Response(JSON.stringify({
-				error: isRateLimit
-					? 'Something went wrong. Try again later.'
-					: `Gemini API returned ${geminiRes?.status}`
-			}), {
-				status: isRateLimit ? 429 : 502,
-				headers: { 'Content-Type': 'application/json' }
-			});
+			return new Response(
+				JSON.stringify({
+					error: isRateLimit
+						? "Something went wrong. Try again later."
+						: `Gemini API returned ${geminiRes?.status}`,
+				}),
+				{
+					status: isRateLimit ? 429 : 502,
+					headers: { "Content-Type": "application/json" },
+				},
+			);
 		}
 
 		const geminiData = await geminiRes.json();
 
 		// Extract the text response from Gemini
 		const text = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
-		if (!text) throw new Error('No response from Gemini');
+		if (!text) throw new Error("No response from Gemini");
 
 		// Parse the JSON response — strip markdown fences if present
-		const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+		const cleaned = text
+			.replace(/```json\n?/g, "")
+			.replace(/```\n?/g, "")
+			.trim();
 		const parsed = JSON.parse(cleaned);
 
 		// Convert to our ExtractedColor format
@@ -133,28 +138,41 @@ Suggest exactly ${count} colors that capture the emotional feeling of the artwor
 				hex,
 				rgb: { r, g, b },
 				hsl: rgbToHsl(r, g, b),
-				name: c.name
+				name: c.name,
 			};
 		});
 
-		return new Response(JSON.stringify({
-			description: parsed.description,
-			colors
-		}), {
-			headers: { 'Content-Type': 'application/json' }
-		});
+		return new Response(
+			JSON.stringify({
+				description: parsed.description,
+				colors,
+			}),
+			{
+				headers: { "Content-Type": "application/json" },
+			},
+		);
 	} catch (e: any) {
-		console.error('AI palette generation failed:', e?.message || e);
-		console.error('Stack:', e?.stack);
-		return new Response(JSON.stringify({ error: 'AI palette generation failed', detail: e?.message }), {
-			status: 500,
-			headers: { 'Content-Type': 'application/json' }
-		});
+		console.error("AI palette generation failed:", e?.message || e);
+		console.error("Stack:", e?.stack);
+		return new Response(
+			JSON.stringify({
+				error: "AI palette generation failed",
+				detail: e?.message,
+			}),
+			{
+				status: 500,
+				headers: { "Content-Type": "application/json" },
+			},
+		);
 	}
 };
 
 /** RGB to HSL conversion (server-side copy) */
-function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+function rgbToHsl(
+	r: number,
+	g: number,
+	b: number,
+): { h: number; s: number; l: number } {
 	r /= 255;
 	g /= 255;
 	b /= 255;
@@ -167,14 +185,20 @@ function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: n
 		const d = max - min;
 		s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
 		switch (max) {
-			case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
-			case g: h = ((b - r) / d + 2) / 6; break;
-			case b: h = ((r - g) / d + 4) / 6; break;
+			case r:
+				h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+				break;
+			case g:
+				h = ((b - r) / d + 2) / 6;
+				break;
+			case b:
+				h = ((r - g) / d + 4) / 6;
+				break;
 		}
 	}
 	return {
 		h: Math.round(h * 360),
 		s: Math.round(s * 100),
-		l: Math.round(l * 100)
+		l: Math.round(l * 100),
 	};
 }

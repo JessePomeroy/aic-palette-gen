@@ -15,6 +15,7 @@
     } from "$lib/api/artic";
     import {
         extractColors,
+        fetchImageBlob,
         type ExtractedColor,
         type ExtractionMode,
     } from "$lib/colors/extraction";
@@ -189,13 +190,13 @@
         if (!artwork?.image_id) return;
         aiLoading = true;
         try {
-            const res = await fetch("/api/ai-palette", {
+            const count = colorCount;
+            const image = await fetchImageBlob(getImageUrl(artwork.image_id, "medium"));
+            if (request !== paletteRequest) return;
+            const res = await fetch(`/api/ai-palette?count=${count}`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    imageUrl: getImageUrl(artwork.image_id, "medium"),
-                    count: colorCount,
-                }),
+                headers: { "Content-Type": "image/jpeg" },
+                body: image,
             });
             const data = await res.json();
             if (request !== paletteRequest) return;
