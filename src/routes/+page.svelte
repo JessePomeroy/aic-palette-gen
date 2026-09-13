@@ -2,15 +2,17 @@
   Main Page — Art Institute Color Palette Generator
 
   Dark gallery aesthetic — artwork is the star, ui stays out of the way.
-  Mobile-first: stacked on small screens, sidebar on lg+.
+  Viewport-sized workbench with mobile sheets and desktop drawers.
 -->
 
 <script lang="ts">
-    import { onMount } from "svelte";
+    import { onMount, onDestroy, tick } from "svelte";
     import {
         searchArtworks,
         getRandomArtwork,
         getImageUrl,
+        getArtworkUrl,
+        type SearchParams,
         type Artwork,
     } from "$lib/api/artic";
     import {
@@ -26,6 +28,74 @@
         exportAse,
         downloadFile,
     } from "$lib/export/palette";
+    import { exportArtworkCard } from '$lib/export/artwork-card';
+    import { applyLocks, readableText } from '$lib/colors/workbench';
+    import { createIndexedSearch } from '$lib/colors/indexed-search';
+    import { HISTORY_KEY, parseHistory, rememberPalette, type RecentPalette } from '$lib/history';
+    import PaletteEditor from '$lib/components/PaletteEditor.svelte';
+    import ContrastChecker from '$lib/components/ContrastChecker.svelte';
+    import ModeComparison, { type PaletteVariant } from '$lib/components/ModeComparison.svelte';
+
+    type WorkbenchPanel = 'search' | 'palette' | 'history' | 'save' | 'artwork';
+    const panelTitles = { search: 'Find artwork', palette: 'Palette tools', history: 'Recent palettes', save: 'Save & share', artwork: 'About this artwork' };
+    const toolPanels = [{ id: 'search', label: 'Search' }, { id: 'palette', label: 'Palette' }, { id: 'history', label: 'History' }, { id: 'save', label: 'Save & share' }] as const;
+    let mobile = $state(false);
+    let activePanel = $state<WorkbenchPanel>('search');
+    let toolDialog = $state<HTMLDialogElement>();
+    let panelOpen = $state(false);
+    let closingSheet = false;
+    async function openPanel(panel: WorkbenchPanel) {
+        const wasOpen = toolDialog?.open;
+        activePanel = panel;
+        await tick();
+        toolDialog?.querySelector('.workbench-sheet-content')?.scrollTo(0, 0);
+        toolDialog?.showModal();
+        panelOpen = true;
+        if (wasOpen) toolDialog?.querySelector<HTMLElement>('.workbench-sheet-content input, .workbench-sheet-content button')?.focus();
+        if (panel === 'palette') void compareModes();
+    }
+    async function closePanel() {
+        const dialog = toolDialog;
+        if (!dialog?.open || closingSheet) return;
+        closingSheet = true;
+        const styles = getComputedStyle(dialog);
+        const animation = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? undefined
+            : dialog.animate([{ transform: styles.transform }, { transform: styles.getPropertyValue('--panel-closed-transform').trim() }],
+                { duration: 180, easing: 'ease-in', fill: 'forwards' });
+        try { await animation?.finished; }
+        catch { /* A viewport change can remove the sheet mid-animation. */ }
+        finally {
+            dialog.close();
+            animation?.cancel();
+            closingSheet = false;
+        }
+    }
+    function sheetBackdrop(node: HTMLDialogElement) {
+        let startedOutside = false;
+        const outside = (event: PointerEvent) => {
+            const bounds = node.getBoundingClientRect();
+            return event.clientX < bounds.left || event.clientX > bounds.right
+                || event.clientY < bounds.top || event.clientY > bounds.bottom;
+        };
+        const down = (event: PointerEvent) => { startedOutside = event.target === node && outside(event); };
+        const up = (event: PointerEvent) => {
+            if (startedOutside && event.target === node && outside(event)) void closePanel();
+            startedOutside = false;
+        };
+        node.addEventListener('pointerdown', down);
+        node.addEventListener('pointerup', up);
+        return { destroy() { node.removeEventListener('pointerdown', down); node.removeEventListener('pointerup', up); } };
+    }
+    onMount(() => {
+        const query = window.matchMedia('(max-width: 1023px)');
+        const update = () => {
+            if (mobile !== query.matches) toolDialog?.close();
+            mobile = query.matches;
+        };
+        update();
+        query.addEventListener('change', update);
+        return () => query.removeEventListener('change', update);
+    });
 
     // ── reactive state ──
 
@@ -38,14 +108,50 @@
     let colorCount = $state(5);
     let extractionMode = $state<ExtractionMode>("dominant");
     let shareStatus = $state("");
+    let sharing = $state(false);
+    let shareUrl = $state('');
+    let shareRequest = 0;
     let aiDescription = $state("");
     let aiLoading = $state(false);
     let copiedHex = $state("");
     let paletteError = $state("");
     let paletteLoading = $state(false);
     let artworkRequest = 0;
+    let matchController: AbortController | undefined;
+    let matching = $state(false);
+    let matchStatus = $state('');
+    let indexedCount = $state(0);
+    const indexedSearch = createIndexedSearch();
     let paletteRequest = 0;
     const exportFormats = ["json", "css", "png", "ase"] as const;
+    let locks = $state<(ExtractedColor | null)[]>([]);
+    let variants = $state<Partial<Record<ExtractionMode, PaletteVariant>>>({});
+    let comparisonBusy = $state(false);
+    let comparisonError = $state('');
+    let comparisonRequest = 0;
+    let recent = $state<RecentPalette[]>([]);
+    let historyStatus = $state('');
+    let cardBusy = $state(false);
+    let cardStatus = $state('');
+    let artistFilter = $state('');
+    let mediumFilter = $state('');
+    let periodFilter = $state('');
+    let publicDomain = $state(false);
+    let searchBusy = $state(false);
+    let searchStatus = $state('');
+    let searchPage = $state(1);
+    let searchTotal = $state(0);
+    let activeSearch: SearchParams = {};
+    let searchRequest = 0;
+    let busy = $derived(loading || matching || paletteLoading || aiLoading || comparisonBusy);
+    let minimumCount = $derived(Math.max(5, locks.findLastIndex(Boolean) + 1));
+    const periods = [
+        { value: '', label: 'Any period' },
+        { value: '-5000:1799', label: 'Before 1800' },
+        { value: '1800:1899', label: '1800–1899' },
+        { value: '1900:1949', label: '1900–1949' },
+        { value: '1950:2026', label: '1950–present' }
+    ];
 
     // ── derived: pick the most vibrant color as the dynamic accent ──
     let accentColor = $derived.by(() => {
@@ -55,21 +161,148 @@
         return sorted[0].hex;
     });
 
-    // ── derived: lighter version for backgrounds ──
-    let accentSubtle = $derived.by(() => {
-        // convert to rgba with low opacity
-        const hex = accentColor.replace("#", "");
-        const r = parseInt(hex.slice(0, 2), 16);
-        const g = parseInt(hex.slice(2, 4), 16);
-        const b = parseInt(hex.slice(4, 6), 16);
-        return `rgba(${r}, ${g}, ${b}, 0.15)`;
-    });
-
     // ── lifecycle ──
 
     onMount(async () => {
+        try { recent = parseHistory(localStorage.getItem(HISTORY_KEY)); }
+        catch { historyStatus = 'History is available for this session only.'; }
         await loadRandom();
     });
+    onDestroy(() => matchController?.abort());
+
+    function cancelMatch() {
+        ++artworkRequest;
+        matchController?.abort();
+        matchController = undefined;
+        matching = false;
+        matchStatus = '';
+    }
+
+    function saveRecent() {
+        if (!artwork || colors.length < 5) return;
+        recent = rememberPalette(recent, { artwork, colors, locks, mode: extractionMode, description: aiDescription });
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(recent)); historyStatus = ''; }
+        catch { historyStatus = 'History is available for this session only.'; }
+    }
+
+    function resetPalette() {
+        ++shareRequest;
+        sharing = false;
+        shareStatus = '';
+        shareUrl = '';
+        ++paletteRequest;
+        ++comparisonRequest;
+        colors = [];
+        // Locks belong to the palette workbench, not the current artwork.
+        variants = {};
+        comparisonBusy = false;
+        comparisonError = '';
+        paletteLoading = false;
+        aiLoading = false;
+        aiDescription = '';
+        paletteError = '';
+        cardStatus = '';
+    }
+
+    function restoreRecent(entry: RecentPalette) {
+        toolDialog?.close();
+        cancelMatch();
+        resetPalette();
+        loading = false;
+        artwork = entry.artwork;
+        colors = entry.colors;
+        locks = entry.locks;
+        colorCount = entry.colors.length;
+        extractionMode = entry.mode;
+        aiDescription = entry.description;
+        showResults = false;
+        saveRecent();
+    }
+
+    function clearHistory() {
+        recent = [];
+        try { localStorage.removeItem(HISTORY_KEY); historyStatus = 'History cleared.'; }
+        catch { historyStatus = 'Could not clear browser storage; this session’s history was cleared.'; }
+    }
+
+    function toggleLock(index: number) {
+        locks = colors.map((_, i) => i === index ? (locks[i] ? null : colors[i]) : locks[i] ?? null);
+        saveRecent();
+    }
+
+    function acceptPalette(mode: ExtractionMode, variant: PaletteVariant) {
+        variants = { ...variants, [mode]: variant };
+        colors = applyLocks(variant.colors, locks, colorCount);
+        aiDescription = variant.description;
+        saveRecent();
+    }
+
+    function useVariant(mode: ExtractionMode) {
+        const variant = variants[mode];
+        if (!variant || busy) return;
+        extractionMode = mode;
+        paletteError = '';
+        acceptPalette(mode, variant);
+    }
+
+    async function countChanged() {
+        variants = {};
+        locks = locks.slice(0, colorCount);
+        await regeneratePalette();
+    }
+
+    async function generateTone(imageId: string, count: number, stillCurrent: () => boolean): Promise<PaletteVariant> {
+        const image = await fetchImageBlob(getImageUrl(imageId, 'medium'));
+        if (!stillCurrent()) throw new Error('Selection changed.');
+        const res = await fetch(`/api/ai-palette?count=${count}`, {
+            method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: image
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Could not generate tone. Try again.');
+        if (!Array.isArray(data.colors) || data.colors.length !== count || !data.colors.every((c: ExtractedColor) => /^#[0-9a-f]{6}$/i.test(c.hex))) throw new Error('Tone returned an incomplete palette. Please try again.');
+        return { colors: data.colors, description: data.description || '' };
+    }
+
+    async function compareModes(tone = false) {
+        if (!artwork?.image_id || busy) return;
+        const request = ++comparisonRequest;
+        const imageId = artwork.image_id;
+        const count = colorCount;
+        comparisonBusy = true;
+        comparisonError = '';
+        try {
+            if (tone) {
+                const variant = await generateTone(imageId, count, () => request === comparisonRequest);
+                if (request === comparisonRequest) variants = { ...variants, ai: variant };
+            } else {
+                for (const mode of ['dominant', 'vibrant'] as const) {
+                    if (variants[mode]) continue;
+                    const result = await extractColors(getImageUrl(imageId, 'large'), mode, count);
+                    if (request !== comparisonRequest) return;
+                    if (!result.length) throw new Error('Could not compare these palettes. Please try again.');
+                    variants = { ...variants, [mode]: { colors: result, description: '' } };
+                }
+            }
+        } catch (error) {
+            if (request === comparisonRequest) comparisonError = error instanceof Error ? error.message : 'Comparison failed.';
+        } finally {
+            if (request === comparisonRequest) comparisonBusy = false;
+        }
+    }
+
+    async function downloadCard() {
+        if (!artwork || !colors.length || cardBusy) return;
+        const selected = artwork;
+        const palette = [...colors];
+        cardBusy = true;
+        cardStatus = '';
+        try {
+            const blob = await exportArtworkCard(selected, palette);
+            downloadFile(blob, `chroma-${selected.id}-artwork-card.png`);
+            cardStatus = 'Artwork card downloaded.';
+        } catch { cardStatus = 'Could not load the artwork for export. Please try again.'; }
+        finally { cardBusy = false; }
+    }
 
     // ── hover handlers (inline multiple statements don't work in Svelte 5 SSR) ──
     function brightenBg(e: MouseEvent) {
@@ -82,33 +315,57 @@
         target.style.backgroundColor = accentColor;
         target.style.filter = "none";
     }
-    function brightenBorder(e: MouseEvent) {
-        (e.currentTarget as HTMLElement).style.borderColor = accentColor;
-    }
-    function resetBorder(e: MouseEvent) {
-        (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
-    }
-    function setSubtleBg(e: MouseEvent) {
-        (e.currentTarget as HTMLElement).style.backgroundColor = accentSubtle;
-    }
-    function clearSubtleBg(e: MouseEvent) {
-        const target = e.currentTarget as HTMLElement;
-        target.style.backgroundColor =
-            copiedHex && target.dataset.hex === copiedHex
-                ? accentSubtle
-                : "transparent";
-    }
-
     // ── data loading ──
 
     async function loadRandom() {
+        if (busy) return;
+        cancelMatch();
         const request = ++artworkRequest;
-        ++paletteRequest;
-        paletteLoading = false;
-        paletteError = "";
+        const lockedHexes = locks.flatMap(color => color ? [color.hex] : []);
+        if (lockedHexes.length) {
+            matchController = new AbortController();
+            const signal = AbortSignal.any([matchController.signal, AbortSignal.timeout(30000)]);
+            matching = true;
+            matchStatus = 'Finding a match…';
+            try {
+                const result = await indexedSearch.search(lockedHexes, {
+                    signal,
+                    currentArtworkId: artwork?.id,
+                    seenArtworkIds: recent.map(entry => entry.artwork.id),
+                    onIndexReady: count => {
+                        if (request !== artworkRequest) return;
+                        indexedCount = count;
+                    },
+                });
+                if (request !== artworkRequest) return;
+                if (result.status === 'no-match') {
+                    matchStatus = `No other close match in the ${result.indexedCount}-artwork index. Your artwork and palette are unchanged.`;
+                    return;
+                }
+                if (result.status === 'incomplete') {
+                    matchStatus = result.reason === 'unavailable'
+                        ? 'Some color-index data could not be loaded. Your artwork and palette are unchanged. Please try again.'
+                        : 'The color-index check is incomplete. Your artwork and palette are unchanged. Please try again.';
+                    return;
+                }
+                matching = false;
+                matchController = undefined;
+                resetPalette();
+                artwork = result.artwork;
+                extractionMode = 'dominant';
+                matchStatus = '';
+                await regeneratePalette();
+            } catch {
+                if (request === artworkRequest) matchStatus = signal.aborted
+                    ? 'The color-index search timed out. Your artwork and palette are unchanged. Please try again.'
+                    : 'The color index is unavailable. Your artwork and palette are unchanged. Please try again.';
+            } finally {
+                if (request === artworkRequest) { matching = false; matchController = undefined; }
+            }
+            return;
+        }
+        resetPalette();
         loading = true;
-        colors = [];
-        aiDescription = "";
         // Always start with dominant mode on new artwork — tone requires explicit selection
         extractionMode = "dominant";
         try {
@@ -130,23 +387,47 @@
     }
 
     async function handleSearch() {
-        if (!searchQuery.trim()) return;
-        searchResults = [];
-        showResults = false;
+        const years = periodFilter ? periodFilter.split(':').map(Number) : [];
+        activeSearch = { q: searchQuery, artist: artistFilter, medium: mediumFilter, publicDomain,
+            fromYear: years[0], toYear: years[1] };
+        await runSearch(1);
+    }
+
+    async function runSearch(page: number) {
+        const request = ++searchRequest;
+        searchBusy = true;
+        searchStatus = '';
+        showResults = true;
         try {
-            const result = await searchArtworks({ q: searchQuery, limit: 20 });
-            // Filter to only artworks with images
-            searchResults = result.data.filter((a: Artwork) => a.image_id);
-            if (searchResults.length > 0) {
-                showResults = true;
-            }
-        } catch (e) {
-            console.error("Search failed:", e);
+            const result = await searchArtworks({ ...activeSearch, page, limit: 12 });
+            if (request !== searchRequest) return;
+            searchResults = result.data.filter(a => a.image_id);
+            searchPage = page;
+            searchTotal = result.pagination.total;
+            if (!searchResults.length) searchStatus = 'No artworks match. Try a broader search or clear your filters.';
+        } catch {
+            if (request === searchRequest) { searchResults = []; searchStatus = 'Search is unavailable. Please try again.'; }
+        } finally {
+            if (request === searchRequest) searchBusy = false;
         }
     }
 
+    async function moreLikeThis() {
+        if (!artwork) return;
+        await openPanel('search');
+        searchQuery = '';
+        artistFilter = artwork.artist_id ? artwork.artist_title || '' : '';
+        mediumFilter = artwork.artist_id ? '' : artwork.medium_display || '';
+        periodFilter = '';
+        activeSearch = artwork.artist_id ? { artistId: artwork.artist_id, excludeId: artwork.id, publicDomain }
+            : { medium: mediumFilter, excludeId: artwork.id, publicDomain };
+        await runSearch(1);
+    }
+
     async function selectResult(a: Artwork) {
-        ++artworkRequest;
+        toolDialog?.close();
+        cancelMatch();
+        resetPalette();
         showResults = false;
         searchQuery = "";
         loading = true;
@@ -160,7 +441,16 @@
     }
 
     function closeResults() {
+        ++searchRequest;
+        searchBusy = false;
         showResults = false;
+    }
+
+    function fallbackImage(event: Event) {
+        const img = event.currentTarget;
+        if (img instanceof HTMLImageElement && img.src.startsWith('https://www.artic.edu/iiif/')) {
+            img.src = `/api/image?${new URLSearchParams({ url: img.src })}`;
+        }
     }
 
     async function regeneratePalette() {
@@ -180,7 +470,8 @@
                 colorCount,
             );
             if (request !== paletteRequest) return;
-            colors = extracted;
+            if (extracted.length) acceptPalette(extractionMode, { colors: extracted, description: '' });
+            else colors = [];
             paletteLoading = false;
             if (!colors.length) paletteError = "Could not generate this palette. Please try again.";
         }
@@ -190,27 +481,13 @@
         if (!artwork?.image_id) return;
         aiLoading = true;
         try {
-            const count = colorCount;
-            const image = await fetchImageBlob(getImageUrl(artwork.image_id, "medium"));
+            const data = await generateTone(artwork.image_id, colorCount, () => request === paletteRequest);
             if (request !== paletteRequest) return;
-            const res = await fetch(`/api/ai-palette?count=${count}`, {
-                method: "POST",
-                headers: { "Content-Type": "image/jpeg" },
-                body: image,
-            });
-            const data = await res.json();
-            if (request !== paletteRequest) return;
-            if (!res.ok) {
-                aiDescription =
-                    data.error || "Failed to generate palette. Try again.";
-                return;
-            }
-            colors = data.colors;
-            aiDescription = data.description;
+            acceptPalette('ai', data);
         } catch (e) {
             if (request !== paletteRequest) return;
             console.error("Tone palette failed:", e);
-            aiDescription = "Failed to generate palette. Try again.";
+            paletteError = e instanceof Error ? e.message : 'Tone generation failed. Please try again.';
         } finally {
             if (request === paletteRequest) aiLoading = false;
         }
@@ -218,18 +495,25 @@
 
     // ── user actions ──
 
-    function copyColor(hex: string) {
-        navigator.clipboard.writeText(hex);
-        copiedHex = hex;
-        setTimeout(() => (copiedHex = ""), 1500);
+    async function copyColor(hex: string) {
+        try {
+            await navigator.clipboard.writeText(hex);
+            copiedHex = hex;
+            setTimeout(() => (copiedHex = ""), 1500);
+        } catch { shareStatus = 'Clipboard unavailable. Select and copy the hex value.'; }
     }
 
     async function handleShare() {
-        if (!artwork || colors.length === 0) return;
+        if (!artwork || colors.length === 0 || busy || sharing) return;
+        const request = ++shareRequest;
+        sharing = true;
+        shareStatus = 'Saving palette…';
+        shareUrl = '';
         try {
             const res = await fetch("/api/palette", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                signal: AbortSignal.timeout(15000),
                 body: JSON.stringify({
                     artworkId: artwork.id,
                     colors,
@@ -237,28 +521,35 @@
                     count: colorCount,
                 }),
             });
-            if (!res.ok) throw new Error("Failed to save");
-            const { url } = await res.json();
-
-            // Mobile: use Web Share API, Desktop: use clipboard
-            const isMobile = "ontouchstart" in window && navigator.share;
-            if (isMobile) {
-                await navigator.share({ title: "Chroma Collection", url });
-                shareStatus = "shared";
-            } else {
-                await navigator.clipboard.writeText(url);
-                shareStatus = "link copied";
+            const data = await res.json();
+            if (request !== shareRequest) return;
+            if (!res.ok) {
+                shareStatus = typeof data.error === 'string' ? data.error : 'Sharing is unavailable. Please try again.';
+                return;
             }
-            setTimeout(() => (shareStatus = ""), 3000);
-        } catch (e) {
-            console.error("Share failed:", e);
-            shareStatus = "failed to share";
-            setTimeout(() => (shareStatus = ""), 3000);
+            const { url } = data;
+            shareUrl = url;
+
+            try {
+                if ("ontouchstart" in window && navigator.share) {
+                    await navigator.share({ title: "Chroma Collection", url });
+                    if (request === shareRequest) shareStatus = "shared";
+                } else {
+                    await navigator.clipboard.writeText(url);
+                    if (request === shareRequest) shareStatus = "link copied";
+                }
+            } catch {
+                if (request === shareRequest) shareStatus = 'Palette saved. Open the link below to share it.';
+            }
+        } catch {
+            if (request === shareRequest) shareStatus = 'Could not save the palette. Your colors are unchanged; please try again.';
+        } finally {
+            if (request === shareRequest) sharing = false;
         }
     }
 
     async function handleExport(format: "json" | "css" | "png" | "ase") {
-        if (colors.length === 0) return;
+        if (colors.length === 0 || busy) return;
         switch (format) {
             case "json":
                 downloadFile(exportJson(colors), `palette-${artwork?.id}.json`);
@@ -277,53 +568,10 @@
         }
     }
 
-    /**
-     * Returns appropriate text color (white or black) for readability
-     * against a given background hex color.
-     */
-    function contrastText(hex: string): string {
-        const r = parseInt(hex.slice(1, 3), 16);
-        const g = parseInt(hex.slice(3, 5), 16);
-        const b = parseInt(hex.slice(5, 7), 16);
-        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        return luminance > 0.5 ? "#1a1a1a" : "#f0f0f0";
-    }
 </script>
 
-<!-- ── layout ── -->
-
-<div
-    class="min-h-screen"
-    style="background-color: var(--bg-primary); color: var(--text-primary);"
->
-    <!-- header — thin, unobtrusive -->
-    <header
-        class="border-b px-4 py-3 sm:px-6"
-        style="border-color: var(--border); background-color: var(--bg-secondary);"
-    >
-        <div class="mx-auto flex max-w-screen-2xl items-center justify-between">
-            <h1
-                class="text-sm font-light tracking-widest uppercase"
-                style="color: var(--text-secondary);"
-            >
-                chroma collection · aic palette gen
-            </h1>
-            <p
-                class="hidden text-xs sm:block"
-                style="color: var(--text-muted);"
-            >
-                art institute of chicago
-            </p>
-        </div>
-    </header>
-
-    <main class="mx-auto flex max-w-screen-2xl flex-col lg:flex-row">
-        <!-- ── controls ── -->
-        <aside
-            class="order-1 border-b p-4 sm:p-5 lg:order-2 lg:w-81.5 lg:border-b-0 lg:border-l"
-            style="border-color: var(--border); background-color: var(--bg-secondary);"
-        >
-            <!-- search -->
+{#snippet discoveryPanel()}
+<!-- search -->
             <form
                 onsubmit={(e) => {
                     e.preventDefault();
@@ -332,6 +580,7 @@
                 class="mb-5 flex gap-2"
             >
                 <input
+                    aria-label="Search artworks"
                     type="text"
                     bind:value={searchQuery}
                     placeholder="search artworks..."
@@ -340,6 +589,7 @@
                 />
                 <button
                     type="submit"
+                    disabled={searchBusy}
                     class="shrink-0 rounded-md px-3 py-2 text-sm cursor-pointer"
                     style="background-color: {accentColor}; color: var(--bg-primary);"
                     onmouseenter={brightenBg}
@@ -348,6 +598,22 @@
                     search
                 </button>
             </form>
+
+            <details class="workbench-panel mb-4">
+                <summary>Discovery filters</summary>
+                <form class="grid gap-3 mt-4" onsubmit={(e) => { e.preventDefault(); handleSearch(); }}>
+                    <label class="text-xs grid gap-1">Artist<input aria-label="Filter by artist" bind:value={artistFilter} placeholder="e.g. Claude Monet" /></label>
+                    <label class="text-xs grid gap-1">Medium<input aria-label="Filter by medium" bind:value={mediumFilter} placeholder="e.g. oil on canvas" /></label>
+                    <label class="text-xs grid gap-1">Period<select aria-label="Filter by period" bind:value={periodFilter}>{#each periods as period}<option value={period.value}>{period.label}</option>{/each}</select></label>
+                    <label class="flex gap-2 items-center text-xs"><input type="checkbox" bind:checked={publicDomain} /> Public-domain artworks only</label>
+                    <div class="flex gap-2">
+                        <button class="tool-button" type="submit" disabled={searchBusy}>Apply filters</button>
+                        <button class="tool-button" type="button" onclick={() => { artistFilter = ''; mediumFilter = ''; periodFilter = ''; publicDomain = false; handleSearch(); }}>Clear filters</button>
+                    </div>
+                </form>
+            </details>
+            {#if searchBusy}<p role="status" class="text-sm mb-3">Searching the collection…</p>{/if}
+            {#if searchStatus}<p role="status" class="text-sm mb-3">{searchStatus}</p>{/if}
 
             <!-- search results dropdown -->
             {#if showResults && searchResults.length > 0}
@@ -362,14 +628,10 @@
                             class="flex w-full items-center gap-3 p-2 text-left hover:opacity-80 transition-opacity"
                             style="border-bottom: 1px solid var(--border);"
                         >
-                            {#if result.thumbnail}
+                            {#if result.image_id}
                                 <img
-                                    src={getImageUrl(
-                                        result.thumbnail.alt_text
-                                            ? result.image_id!
-                                            : "",
-                                        "thumb",
-                                    )}
+                                    src={getImageUrl(result.image_id, "thumb")}
+                                    onerror={fallbackImage}
                                     alt=""
                                     class="h-10 w-10 object-cover rounded-sm"
                                 />
@@ -386,6 +648,11 @@
                         </button>
                     {/each}
                 </div>
+                <div class="flex justify-between items-center gap-2 text-xs mb-3">
+                    <button class="tool-button" disabled={searchBusy || searchPage === 1} onclick={() => runSearch(searchPage - 1)}>Previous</button>
+                    <span>Page {searchPage} · {searchTotal.toLocaleString()} works</span>
+                    <button class="tool-button" disabled={searchBusy || searchPage * 12 >= Math.min(searchTotal, 10000)} onclick={() => runSearch(searchPage + 1)}>Next</button>
+                </div>
                 <button
                     type="button"
                     onclick={closeResults}
@@ -395,34 +662,27 @@
                     close
                 </button>
             {/if}
+{/snippet}
 
-            <!-- controls row -->
-            <div class="mb-5 flex items-center gap-2">
-                <button
-                    onclick={loadRandom}
-                    class="shrink-0 rounded-md border px-3 py-2 text-sm cursor-pointer"
-                    style="border-color: var(--border); color: var(--text-secondary);"
-                    onmouseenter={brightenBorder}
-                    onmouseleave={resetBorder}
-                >
-                    random
-                </button>
-
+{#snippet controlsPanel()}
+<!-- controls row -->
+            <div class="palette-controls mb-5 flex flex-wrap items-center gap-2">
                 <select
+                    aria-label="Number of colors"
                     bind:value={colorCount}
-                    onchange={regeneratePalette}
+                    onchange={countChanged}
+                    disabled={busy}
                     class="rounded-md px-2 py-2 text-sm cursor-pointer"
                     style="border: 1px solid var(--border);"
                 >
-                    <option value={5}>5 colors</option>
-                    <option value={6}>6 colors</option>
-                    <option value={7}>7 colors</option>
-                    <option value={8}>8 colors</option>
+                    {#each [5, 6, 7, 8] as count}<option value={count} disabled={count < minimumCount}>{count} colors</option>{/each}
                 </select>
 
                 <select
+                    aria-label="Extraction mode"
                     bind:value={extractionMode}
                     onchange={regeneratePalette}
+                    disabled={busy}
                     class="rounded-md px-2 py-2 text-sm cursor-pointer"
                     style="border: 1px solid var(--border);"
                 >
@@ -430,145 +690,21 @@
                     <option value="vibrant">vibrant</option>
                     <option value="ai">tone</option>
                 </select>
+                {#if colors.length}
+                    <button class="tool-button palette-regenerate" onclick={regeneratePalette} disabled={busy || locks.filter(Boolean).length === colors.length}>
+                        {busy ? 'Generating…' : 'Regenerate unlocked'}
+                    </button>
+                {/if}
             </div>
 
-            <!-- share + export (desktop sidebar) -->
-            {#if colors.length > 0}
-                <div class="hidden lg:block">
-                    <div class="mb-5">
-                        <button
-                            onclick={handleShare}
-                            class="w-full rounded-md py-2.5 text-sm font-medium cursor-pointer"
-                            style="background-color: {accentColor}; color: var(--bg-primary);"
-                            onmouseenter={brightenBg}
-                            onmouseleave={resetBg}
-                        >
-                            share palette
-                        </button>
-                        {#if shareStatus}
-                            <p
-                                class="mt-2 text-center text-xs"
-                                style="color: var(--text-muted);"
-                            >
-                                {shareStatus}
-                            </p>
-                        {/if}
-                    </div>
+            {#if locks.some(Boolean)}<p class="text-xs mb-3 opacity-70">Random searches {indexedCount ? `${indexedCount} indexed public-domain artworks` : 'the public-domain artwork index'} for every locked color. This is a subset of the collection. Exact palette hex values stay locked.</p>{/if}
+            {#if matchStatus}<p role="status" class="text-xs mb-3 match-progress">{#if matching}<span class="match-spinner" aria-hidden="true"></span>{/if}{matchStatus}</p>{/if}
+            {#if matching}<button class="tool-button mb-4" onclick={cancelMatch}>Cancel color search</button>{/if}
+{/snippet}
 
-                    <div>
-                        <h3
-                            class="mb-3 text-xs font-medium tracking-wider uppercase"
-                            style="color: var(--text-muted);"
-                        >
-                            save
-                        </h3>
-                        <div class="grid grid-cols-2 gap-2">
-                            {#each exportFormats as fmt}
-                                <button
-                                    onclick={() => handleExport(fmt)}
-                                    class="rounded-md border py-2 text-xs uppercase tracking-wider cursor-pointer"
-                                    style="border-color: var(--border); color: var(--text-secondary);"
-                                    onmouseenter={brightenBorder}
-                                    onmouseleave={resetBorder}
-                                >
-                                    {fmt === "ase" ? ".ase" : fmt}
-                                </button>
-                            {/each}
-                        </div>
-                    </div>
-
-                    <!-- color list with details -->
-                    {#if colors.length > 0}
-                        <div class="mt-6">
-                            <h3
-                                class="mb-3 text-xs font-medium tracking-wider uppercase"
-                                style="color: var(--text-muted);"
-                            >
-                                colors
-                            </h3>
-                            <div class="space-y-1.5">
-                                {#each colors as color}
-                                    <button
-                                        onclick={() => copyColor(color.hex)}
-                                        class="flex w-full items-center gap-3 rounded-md px-2 py-1.5 cursor-pointer"
-                                        style="background-color: {copiedHex ===
-                                        color.hex
-                                            ? accentSubtle
-                                            : 'transparent'};"
-                                        onmouseenter={setSubtleBg}
-                                        onmouseleave={clearSubtleBg}
-                                    >
-                                        <div
-                                            class="h-6 w-6 shrink-0 rounded"
-                                            style="background-color: {color.hex};"
-                                        ></div>
-                                        <span
-                                            class="font-mono text-xs"
-                                            style="color: var(--text-secondary);"
-                                        >
-                                            {color.hex}
-                                        </span>
-                                        {#if color.name}
-                                            <span
-                                                class="ml-auto truncate text-xs italic"
-                                                style="color: var(--text-muted);"
-                                            >
-                                                {color.name}
-                                            </span>
-                                        {/if}
-                                        {#if copiedHex === color.hex}
-                                            <span
-                                                class="text-xs"
-                                                style="color: {accentColor};"
-                                                >copied</span
-                                            >
-                                        {/if}
-                                    </button>
-                                {/each}
-                            </div>
-                        </div>
-                    {/if}
-                </div>
-            {/if}
-        </aside>
-
-        <!-- ── artwork + palette ── -->
-        <section class="order-2 flex-1 p-4 sm:p-6 lg:order-1 lg:p-8">
-            {#if loading}
-                <div class="flex h-64 items-center justify-center sm:h-96">
-                    <div class="flex flex-col items-center gap-3">
-                        <div
-                            class="h-5 w-5 animate-spin rounded-full border-2 border-t-transparent"
-                            style="border-color: var(--text-muted); border-top-color: transparent;"
-                        ></div>
-                        <span class="text-sm" style="color: var(--text-muted);"
-                            >loading...</span
-                        >
-                    </div>
-                </div>
-            {:else if artwork}
-                <!-- artwork image -->
-                <div class="mb-6 sm:mb-8">
-                    {#if artwork.image_id}
-                        <img
-                            src={getImageUrl(artwork.image_id, "large")}
-                            alt={artwork.thumbnail?.alt_text || artwork.title}
-                            class="artwork-image w-full rounded-lg sm:w-auto sm:max-h-[65vh]"
-                            style="box-shadow: 0 8px 30px rgba(0,0,0,0.4);"
-                        />
-                    {:else}
-                        <div
-                            class="flex h-48 items-center justify-center rounded-lg sm:h-96"
-                            style="background-color: var(--bg-surface);"
-                        >
-                            <span style="color: var(--text-muted);"
-                                >no image available</span
-                            >
-                        </div>
-                    {/if}
-                </div>
-
-                <!-- artwork metadata — museum label style -->
+{#snippet artworkDetails()}
+{#if artwork}
+<!-- artwork metadata — museum label style -->
                 <div class="mb-6 sm:mb-8">
                     <h2
                         class="text-lg font-normal italic sm:text-xl"
@@ -590,100 +726,26 @@
                             {artwork.date_display}
                         </p>
                     {/if}
+                    <div class="flex flex-wrap items-center gap-3 mt-3 text-xs">
+                        <a class="underline" href={getArtworkUrl(artwork.id)} target="_blank" rel="noreferrer">View at the museum ↗</a>
+                        <button class="underline" disabled={searchBusy} onclick={moreLikeThis}>{artwork.artist_id ? 'More by this artist' : 'More in this medium'}</button>
+                        <span class="opacity-70">{artwork.is_public_domain ? 'Public domain' : 'Image rights: see museum page'}</span>
+                    </div>
                 </div>
+{/if}
+{/snippet}
 
-                <!-- ai loading -->
-                {#if paletteLoading}
-                    <p role="status" class="mb-6 text-sm">Generating palette…</p>
-                {:else if paletteError}
-                    <p role="status" class="mb-6 text-sm">
-                        {paletteError}
-                        <button class="underline cursor-pointer" onclick={regeneratePalette}>Retry palette</button>
-                    </p>
-                {/if}
-                {#if aiLoading}
-                    <div
-                        class="mb-6 rounded-lg p-4"
-                        style="background-color: var(--bg-surface); border: 1px solid var(--border);"
-                    >
-                        <span
-                            class="text-sm italic"
-                            style="color: var(--text-muted);"
-                            >analyzing mood...</span
-                        >
-                    </div>
-                {/if}
-
-                <!-- ai mood description -->
-                {#if aiDescription && !aiLoading}
-                    <div
-                        class="mb-6 rounded-lg p-4"
-                        style="background-color: var(--bg-surface); border: 1px solid var(--border);"
-                    >
-                        <p
-                            class="text-sm italic leading-relaxed"
-                            style="color: var(--text-secondary);"
-                        >
-                            {aiDescription}
-                        </p>
-                    </div>
-                {/if}
-
-                <!-- ── color palette swatches ── -->
-                {#if colors.length > 0 && !aiLoading}
-                    <div class="mb-6">
-                        <!-- tall swatch strip — like paint chips -->
-                        <div
-                            class="flex overflow-hidden rounded-lg"
-                            style="box-shadow: 0 4px 20px rgba(0,0,0,0.3);"
-                        >
-                            {#each colors as color}
-                                <button
-                                    onclick={() => copyColor(color.hex)}
-                                    class="group relative flex-1 cursor-pointer"
-                                    title="copy {color.hex}"
-                                >
-                                    <div
-                                        class="flex h-20 items-end justify-center pb-2 sm:h-28"
-                                        style="background-color: {color.hex};"
-                                    >
-                                        <!-- hex label on the swatch itself -->
-                                        <span
-                                            class="font-mono text-[10px] opacity-0 transition-opacity group-hover:opacity-100 sm:text-xs"
-                                            style="color: {contrastText(
-                                                color.hex,
-                                            )};"
-                                        >
-                                            {copiedHex === color.hex
-                                                ? "copied"
-                                                : color.hex}
-                                        </span>
-                                    </div>
-                                </button>
-                            {/each}
-                        </div>
-
-                        <!-- color names (tone mode) -->
-                        {#if colors.some((c) => c.name)}
-                            <div class="mt-2 flex">
-                                {#each colors as color}
-                                    <div class="flex-1 text-center">
-                                        <span
-                                            class="text-[9px] italic sm:text-[10px]"
-                                            style="color: var(--text-muted);"
-                                        >
-                                            {color.name || ""}
-                                        </span>
-                                    </div>
-                                {/each}
-                            </div>
-                        {/if}
+{#snippet exportPanel()}
+<div class="flex flex-wrap items-center gap-3 my-5">
+                        <button class="tool-button" disabled={busy || cardBusy || Boolean(paletteError)} onclick={downloadCard}>{cardBusy ? "Creating card…" : "Download artwork + palette card"}</button>
+                        <span role="status" class="text-xs">{cardStatus}</span>
                     </div>
 
-                    <!-- share + save (mobile) -->
-                    <div class="flex flex-wrap items-center gap-2 lg:hidden">
+                    <!-- The same save controls are available in both sheet layouts. -->
+                    <div class="flex flex-wrap items-center gap-2" class:invisible={busy || Boolean(paletteError)}>
                         <button
                             onclick={handleShare}
+                            disabled={sharing || busy || !colors.length}
                             class="rounded-md px-3 py-1.5 text-sm cursor-pointer"
                             style="background-color: {accentColor}; color: var(--bg-primary);"
                         >
@@ -691,15 +753,18 @@
                         </button>
                         {#if shareStatus}
                             <span
+                                role="status"
                                 class="text-xs"
                                 style="color: var(--text-muted);"
                                 >{shareStatus}</span
                             >
                         {/if}
+                        {#if shareUrl}<a class="text-xs underline" href={shareUrl}>Open saved palette</a>{/if}
                         <span style="color: var(--border);">·</span>
                         {#each exportFormats as fmt}
                             <button
                                 onclick={() => handleExport(fmt)}
+                                disabled={busy || !colors.length}
                                 class="rounded-md border px-2.5 py-1.5 text-xs uppercase cursor-pointer"
                                 style="border-color: var(--border); color: var(--text-secondary);"
                             >
@@ -707,8 +772,205 @@
                             </button>
                         {/each}
                     </div>
-                {/if}
+{/snippet}
+
+{#snippet historyPanel()}
+<section class="workbench-panel mt-8" aria-label="Recent palettes">
+                <div class="flex justify-between gap-3 items-center">
+                    <h3 class="text-xs uppercase tracking-widest">Recent palettes</h3>
+                    {#if recent.length}<button class="text-xs underline" onclick={clearHistory}>Clear history</button>{/if}
+                </div>
+                <p class="text-xs opacity-70 mt-2">Your last 24 palettes, saved in this browser. Select one to restore its colors and locks.</p>
+                {#if historyStatus}<p role="status" class="text-xs mt-2">{historyStatus}</p>{/if}
+                {#if !recent.length}<p class="text-sm mt-4 opacity-70">Your first palette will appear here.</p>{/if}
+                <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 mt-4">
+                    {#each recent as entry (entry.id)}
+                        <button class="history-item text-left min-w-0" onclick={() => restoreRecent(entry)} title={`Restore ${entry.artwork.title} (${entry.mode === 'ai' ? 'tone' : entry.mode})`}>
+                            {#if entry.artwork.image_id}<img loading="lazy" src={getImageUrl(entry.artwork.image_id, 'small')} onerror={fallbackImage} alt="" class="h-20 w-full object-cover rounded-t-md" />{/if}
+                            <span class="flex h-5">{#each entry.colors as color}<span class="flex-1" style={`background:${color.hex}`}></span>{/each}</span>
+                            <span class="block p-2 text-xs truncate">{entry.artwork.title}</span>
+                            <span class="block px-2 pb-2 text-[10px] opacity-70">{entry.mode === 'ai' ? 'tone' : entry.mode} · {entry.colors.length} colors</span>
+                        </button>
+                    {/each}
+                </div>
+            </section>
+{/snippet}
+
+{#snippet desktopWorkbench()}
+    <main class="desktop-workbench">
+        <header class="desktop-header">
+            <div class="desktop-brand">
+                <h1>Chroma <span>Collection</span></h1>
+                <p>Art Institute of Chicago</p>
+            </div>
+            <nav class="desktop-nav" aria-label="Workbench tools">
+                {#each toolPanels as panel}
+                    <button
+                        aria-haspopup="dialog"
+                        aria-controls="workbench-tools"
+                        aria-expanded={panelOpen && activePanel === panel.id}
+                        disabled={panel.id === 'save' && !colors.length}
+                        onclick={() => openPanel(panel.id)}
+                    >{panel.label}</button>
+                {/each}
+            </nav>
+        </header>
+
+        <section class="desktop-art" aria-label="Artwork">
+            {#if loading}
+                <p role="status">Finding artwork…</p>
+            {:else if artwork?.image_id}
+                <img src={getImageUrl(artwork.image_id, 'large')} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} class="artwork-image" />
+            {:else}
+                <p>No artwork available. Try Random.</p>
+            {/if}
+            {#if paletteLoading || aiLoading || paletteError || matching || matchStatus}
+                <div class="desktop-feedback" role="status">
+                    {#if paletteError}
+                        <span>{paletteError}</span>
+                        <button disabled={busy} onclick={regeneratePalette}>Retry palette</button>
+                    {:else}
+                        <span class="match-progress">{#if matching}<span class="match-spinner" aria-hidden="true"></span>{/if}{aiLoading ? 'Analyzing mood…' : paletteLoading ? 'Generating palette…' : matchStatus}</span>
+                    {/if}
+                </div>
             {/if}
         </section>
+
+        <section class="desktop-palette-dock" aria-label="Your palette">
+            <div class="desktop-dock-toolbar">
+                <button class="desktop-caption" aria-label="Read full artwork details" aria-haspopup="dialog" aria-controls="workbench-tools" disabled={!artwork} onclick={() => openPanel('artwork')}>
+                    <span class="desktop-title">{artwork?.title || 'The Art Institute of Chicago'}</span>
+                    <span class="desktop-artist">{artwork?.artist_title || artwork?.artist_display || 'Explore the collection'}{artwork?.date_display ? ` · ${artwork.date_display}` : ''} <span aria-hidden="true">↗</span></span>
+                </button>
+                <div class="desktop-controls">
+                    <select aria-label="Number of colors" bind:value={colorCount} onchange={countChanged} disabled={busy}>
+                        {#each [5, 6, 7, 8] as count}<option value={count} disabled={count < minimumCount}>{count} colors</option>{/each}
+                    </select>
+                    <select aria-label="Extraction mode" bind:value={extractionMode} onchange={regeneratePalette} disabled={busy}>
+                        <option value="dominant">dominant</option>
+                        <option value="vibrant">vibrant</option>
+                        <option value="ai">tone</option>
+                    </select>
+                    <button class="desktop-regenerate" onclick={regeneratePalette} disabled={busy || !colors.length || locks.filter(Boolean).length === colors.length}>Regenerate unlocked</button>
+                    <button class="desktop-random" disabled={busy} onclick={loadRandom}>{matching ? 'Finding a match…' : locks.some(Boolean) ? 'Random matching art' : 'Random artwork'}</button>
+                    {#if matching}<button class="desktop-cancel" onclick={cancelMatch}>Cancel</button>{/if}
+                </div>
+            </div>
+            <div class="desktop-swatches" style={`--swatch-count: ${Math.max(colors.length, 5)}`}>
+                {#each colors as color, i}
+                    <div class="desktop-swatch">
+                        <button class="desktop-color" style={`background: ${color.hex}; color: ${readableText(color.hex)}`} aria-label={`Copy ${color.hex}`} title={color.name || color.hex} onclick={() => copyColor(color.hex)}>
+                            <span>{copiedHex === color.hex ? 'Copied' : color.hex}</span>
+                        </button>
+                        <button class="desktop-lock" class:locked={Boolean(locks[i])} aria-label={`${locks[i] ? 'Unlock' : 'Lock'} color ${i + 1} (${color.hex})`} aria-pressed={Boolean(locks[i])} disabled={busy} onclick={() => toggleLock(i)}>{locks[i] ? 'Locked' : 'Lock'}</button>
+                    </div>
+                {:else}
+                    <p class="desktop-palette-empty">{busy ? 'Your palette is on its way…' : 'Choose an artwork to find its colors.'}</p>
+                {/each}
+            </div>
+            <p class="desktop-palette-hint">{locks.some(Boolean) ? `${locks.filter(Boolean).length} locked · Random searches ${indexedCount ? `${indexedCount.toLocaleString()} indexed artworks` : 'the artwork index'} for every locked color.` : 'Click a swatch to copy. Lock colors to guide the next artwork.'}</p>
+        </section>
     </main>
-</div>
+{/snippet}
+
+{#if mobile}
+    <main class="mobile-workbench">
+        <header class="mobile-header">
+            <h1>Chroma <span>Collection</span></h1>
+            <button aria-label="About this artwork" disabled={!artwork} onclick={() => openPanel('artwork')}>Info</button>
+        </header>
+
+        <section class="mobile-art" aria-label="Artwork">
+            {#if loading}
+                <p role="status">Finding artwork…</p>
+            {:else if artwork?.image_id}
+                <img src={getImageUrl(artwork.image_id, 'large')} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} />
+            {:else}
+                <p>No artwork available. Try Random.</p>
+            {/if}
+            {#if paletteLoading || aiLoading || paletteError || matching || matchStatus}
+                <div class="mobile-feedback" role="status">
+                    {#if paletteError}
+                        <span>{paletteError}</span>
+                        <button disabled={busy} onclick={regeneratePalette}>Retry palette</button>
+                    {:else}
+                        <span class="match-progress">{#if matching}<span class="match-spinner" aria-hidden="true"></span>{/if}{aiLoading ? 'Analyzing mood…' : paletteLoading ? 'Generating palette…' : matchStatus}</span>
+                    {/if}
+                </div>
+            {/if}
+        </section>
+
+        <button class="mobile-caption" disabled={!artwork} onclick={() => openPanel('artwork')} aria-label="Read full artwork details">
+            <span class="mobile-title">{artwork?.title || 'The Art Institute of Chicago'}</span>
+            <span class="mobile-artist">{artwork?.artist_title || artwork?.artist_display || 'Explore the collection'}{artwork?.date_display ? ` · ${artwork.date_display}` : ''}</span>
+        </button>
+
+        <section class="mobile-palette" aria-label="Your palette">
+            <div class="mobile-palette-settings">
+                <span title={locks.some(Boolean) ? 'Locked-color search uses a public-domain subset of the collection.' : undefined}>{locks.some(Boolean) ? indexedCount ? `${indexedCount} indexed` : 'Index search' : 'Tap to lock'}</span>
+                <select aria-label="Number of colors" bind:value={colorCount} onchange={countChanged} disabled={busy}>
+                    {#each [5, 6, 7, 8] as count}<option value={count} disabled={count < minimumCount}>{count} colors</option>{/each}
+                </select>
+                <select aria-label="Extraction mode" bind:value={extractionMode} onchange={regeneratePalette} disabled={busy}>
+                    <option value="dominant">dominant</option>
+                    <option value="vibrant">vibrant</option>
+                    <option value="ai">tone</option>
+                </select>
+            </div>
+            <div class="mobile-swatches" class:two-rows={colors.length > 6} style={`--swatch-count: ${Math.max(colors.length, 5)}`}>
+                {#each colors as color, i}
+                    <button class="mobile-swatch" style={`background: ${color.hex}; color: ${readableText(color.hex)}`} aria-label={`${locks[i] ? 'Unlock' : 'Lock'} color ${i + 1} (${color.hex})`} aria-pressed={Boolean(locks[i])} disabled={busy} onclick={() => toggleLock(i)}>
+                        <span class="mobile-hex">{color.hex}</span>
+                        <span class="mobile-lock">{locks[i] ? 'Locked' : 'Lock'}</span>
+                    </button>
+                {:else}
+                    <p class="mobile-palette-empty">{busy ? 'Your palette is on its way…' : 'Choose an artwork to find its colors.'}</p>
+                {/each}
+            </div>
+        </section>
+
+        <div class="mobile-roll">
+            <button class="mobile-random" disabled={busy} onclick={loadRandom}>{matching ? 'Finding indexed match…' : locks.some(Boolean) ? 'Random · indexed color match' : 'Random artwork'}</button>
+            {#if matching}<button class="mobile-cancel" onclick={cancelMatch}>Cancel</button>{/if}
+        </div>
+        <nav class="mobile-nav" aria-label="Workbench tools">
+            <button onclick={() => openPanel('search')}>Search</button>
+            <button onclick={() => openPanel('palette')}>Palette</button>
+            <button onclick={() => openPanel('history')}>History</button>
+            <button onclick={() => openPanel('save')} disabled={!colors.length}>Save</button>
+        </nav>
+    </main>
+
+{:else}
+    {@render desktopWorkbench()}
+{/if}
+
+    <dialog bind:this={toolDialog} use:sheetBackdrop id="workbench-tools" class="workbench-sheet" class:wide-panel={activePanel === 'palette' || activePanel === 'history'} aria-labelledby="workbench-panel-title" onclose={() => { panelOpen = false; }} oncancel={(event) => { event.preventDefault(); void closePanel(); }}>
+        <div class="workbench-sheet-header">
+            <h2 id="workbench-panel-title">{panelTitles[activePanel]}</h2>
+            <button onclick={closePanel}>Close</button>
+        </div>
+        <div class="workbench-sheet-content">
+            {#if activePanel === 'search'}
+                {@render discoveryPanel()}
+            {:else if activePanel === 'palette'}
+                {@render controlsPanel()}
+                {#if paletteError}<p role="status" class="mb-4 text-sm">{paletteError}</p>{/if}
+                {#if aiDescription}<p class="mb-4 text-sm">{aiDescription}</p>{/if}
+                {#if colors.length}
+                    <PaletteEditor showContrast={false} {colors} {locks} {busy} {copiedHex} oncopy={copyColor} onlock={toggleLock} />
+                {/if}
+                <ModeComparison expanded {variants} {busy} error={comparisonError} oncompare={() => compareModes()} ontone={() => compareModes(true)} onapply={useVariant} />
+                {#if colors.length}
+                    <ContrastChecker expanded swatchPicker {colors} oncopy={copyColor} />
+                {/if}
+            {:else if activePanel === 'history'}
+                {@render historyPanel()}
+            {:else if activePanel === 'artwork' && artwork}
+                {@render artworkDetails()}
+                {#if aiDescription}<p class="text-sm mt-4">{aiDescription}</p>{/if}
+            {:else if activePanel === 'save'}
+                {@render exportPanel()}
+            {/if}
+        </div>
+    </dialog>

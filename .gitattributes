@@ -1,0 +1,2 @@
+# Canonical pixel samples are binary; line-ending conversion invalidates their hashes.
+static/color-index/**/samples/*.rgba binary
