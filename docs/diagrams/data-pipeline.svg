@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="1560" viewBox="0 0 1480 1560" role="img" aria-labelledby="title desc">
+  <title id="title">How ChromaCollection builds and uses its artwork database</title>
+  <desc id="desc">A historical museum archive and a live API refresh produce a frozen 59,056-artwork catalog. Paced image processing creates Oklab color fingerprints, exact verification samples, and exploratory grayscale tags. Originals are retained and results are audited. A dashed, separately approved release path leads to future website assets; the current app still uses its existing 2,500-artwork index. Browser palettes can be exported or remembered locally. Explicitly shared palettes, not museum images, go to a separate Neon database.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#54706a"/></marker>
+    <marker id="future" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#956830"/></marker>
+    <style>
+      text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;fill:#20352f}
+      .title{font-size:36px;font-weight:750;letter-spacing:-1px}.subtitle{font-size:19px;fill:#51635b}
+      .section{font-size:16px;font-weight:750;letter-spacing:1.5px;fill:#567568}
+      .heading{font-size:23px;font-weight:700}.body{font-size:18px;fill:#41584f}.small{font-size:16px;fill:#53655d}
+      .box{fill:#fff;stroke:#c1cfc5;stroke-width:1.5}.stage{fill:#edf4ed;stroke:#91ac99;stroke-width:1.5}
+      .current{fill:#e9f0fb;stroke:#98accb;stroke-width:1.5}.futurebox{fill:#fff6e8;stroke:#ba935a;stroke-width:1.5;stroke-dasharray:7 5}
+      .edge{fill:none;stroke:#54706a;stroke-width:2.5;marker-end:url(#arrow)}
+      .dashed{fill:none;stroke:#956830;stroke-width:2.5;stroke-dasharray:8 7;marker-end:url(#future)}
+    </style>
+  </defs>
+  <rect width="1480" height="1560" fill="#f8f7f2"/>
+  <text x="50" y="67" class="title">From museum records to colors you can use</text>
+  <text x="50" y="104" class="subtitle">ChromaCollection · implemented pipeline and release boundaries · September 2026</text>
+  <line x1="915" y1="154" x2="915" y2="1430" stroke="#d2d9d1" stroke-width="1.5"/>
+  <text x="50" y="164" class="section">BUILD THE ART CATALOG &amp; COLOR INDEX</text>
+  <text x="965" y="164" class="section">USE IT ON THE WEBSITE</text>
+
+  <rect x="50" y="200" width="385" height="130" rx="15" class="box"/>
+  <text x="74" y="237" class="heading">Historical museum archive</text>
+  <text x="74" y="270" class="body">134,078 artwork records validated</text>
+  <text x="74" y="297" class="small">57,556 eligible · snapshot: Feb 2025</text>
+  <rect x="475" y="200" width="385" height="130" rx="15" class="box"/>
+  <text x="499" y="237" class="heading">Live metadata refresh</text>
+  <text x="499" y="270" class="body">59,056 eligible artworks · 591 pages</text>
+  <text x="499" y="297" class="small">Public domain + image ID · Sep 2026</text>
+  <path class="edge" d="M242 330V365H360V395"/>
+  <path class="edge" d="M667 330V365H550V395"/>
+  <rect x="180" y="395" width="550" height="115" rx="15" class="stage"/>
+  <text x="205" y="432" class="heading">Reconcile and verify coverage</text>
+  <text x="205" y="466" class="body">1,707 added · 207 removed · 511 image IDs changed</text>
+  <text x="205" y="492" class="small">Strict ID order, remaining counts, final boundary checks</text>
+  <path class="edge" d="M455 510V555"/>
+  <rect x="180" y="555" width="550" height="110" rx="15" class="stage"/>
+  <text x="205" y="593" class="heading">Freeze the 59,056-artwork catalog</text>
+  <text x="205" y="627" class="body">Metadata + IDs + update provenance + checksum</text>
+  <text x="205" y="652" class="small">A recorded live observation window, not an atomic snapshot</text>
+  <path class="edge" d="M455 665V710"/>
+  <rect x="180" y="710" width="550" height="110" rx="15" class="stage"/>
+  <text x="205" y="748" class="heading">Reuse or download artwork images</text>
+  <text x="205" y="781" class="body">2,500 current cached originals · paced 843px JPEGs</text>
+  <text x="205" y="807" class="small">Checkpoints, explicit skips and backoff · originals retained</text>
+  <path class="edge" d="M455 820V865"/>
+  <rect x="180" y="865" width="550" height="110" rx="15" class="stage"/>
+  <text x="205" y="902" class="heading">Analyze one canonical pixel sample</text>
+  <text x="205" y="937" class="body">sRGB RGBA · up to 200px long edge · whole image</text>
+  <text x="205" y="962" class="small">The exact same pixels drive all three outputs below</text>
+  <path class="edge" d="M455 975V1010H175V1040"/>
+  <path class="edge" d="M455 975V1040"/>
+  <path class="edge" d="M455 975V1010H735V1040"/>
+  <rect x="50" y="1040" width="250" height="130" rx="15" class="box"/>
+  <text x="70" y="1078" class="heading">Color fingerprint</text>
+  <text x="70" y="1113" class="body">Oklab histogram</text>
+  <text x="70" y="1143" class="small">Find possible matches</text>
+  <rect x="330" y="1040" width="250" height="130" rx="15" class="box"/>
+  <text x="350" y="1078" class="heading">Verification pixels</text>
+  <text x="350" y="1113" class="body">Lossless sample + hash</text>
+  <text x="350" y="1143" class="small">Check exact saved pixels</text>
+  <rect x="610" y="1040" width="250" height="130" rx="15" class="box"/>
+  <text x="630" y="1078" class="heading">Colorfulness tags</text>
+  <text x="630" y="1113" class="body">Gray / neutral / colorful</text>
+  <text x="630" y="1143" class="small">Informational; no exclusion</text>
+  <path class="edge" d="M175 1170V1205H350V1240"/>
+  <path class="edge" d="M455 1170V1240"/>
+  <path class="edge" d="M735 1170V1205H560V1240"/>
+  <rect x="180" y="1240" width="550" height="130" rx="15" class="stage"/>
+  <text x="205" y="1278" class="heading">Receipts, pilot gate and final audit</text>
+  <text x="205" y="1312" class="body">Pilot: 293 indexed / 300 attempted · integrity passed</text>
+  <text x="205" y="1342" class="small">Full-scan completion requires every record accounted for</text>
+
+  <rect x="965" y="235" width="420" height="140" rx="15" class="current"/>
+  <text x="990" y="273" class="heading">Current local app: 2,500 works</text>
+  <text x="990" y="308" class="body">Existing bounded build, already integrated</text>
+  <text x="990" y="337" class="small">Versioned metadata + index + raw RGBA samples</text>
+  <text x="990" y="361" class="small">Not automatically replaced by the full scan</text>
+  <path class="edge" d="M1175 375V440"/>
+  <rect x="965" y="440" width="420" height="135" rx="15" class="current"/>
+  <text x="990" y="478" class="heading">Find artwork with locked colors</text>
+  <text x="990" y="513" class="body">Browser narrows candidates by fingerprint</text>
+  <text x="990" y="543" class="body">Then verifies every lock in saved pixels</text>
+  <path class="edge" d="M1175 575V635"/>
+  <rect x="965" y="635" width="420" height="125" rx="15" class="current"/>
+  <text x="990" y="674" class="heading">Build and keep a palette</text>
+  <text x="990" y="709" class="body">5–8 swatches · locks · mode comparison</text>
+  <text x="990" y="739" class="small">Browser extraction; optional Tone is separate</text>
+  <path class="edge" d="M1175 760V800H1060V835"/>
+  <path class="edge" d="M1175 760V800H1280V835"/>
+  <rect x="965" y="835" width="200" height="125" rx="15" class="box"/>
+  <text x="986" y="873" class="heading">Local use</text>
+  <text x="986" y="907" class="body">Browser exports</text>
+  <text x="986" y="936" class="small">Recent palette history</text>
+  <rect x="1185" y="835" width="200" height="125" rx="15" class="box"/>
+  <text x="1206" y="873" class="heading">Share action</text>
+  <text x="1206" y="907" class="body">Validated palette</text>
+  <text x="1206" y="936" class="small">POST /api/palette</text>
+  <path class="edge" d="M1285 960V1000H1175V1030"/>
+  <rect x="965" y="1030" width="420" height="140" rx="15" class="current"/>
+  <text x="990" y="1068" class="heading">Neon: shared palettes only</text>
+  <text x="990" y="1103" class="body">UUID + colors + artwork ID + mode/count</text>
+  <text x="990" y="1133" class="small">No original-image warehouse or color-index table</text>
+  <text x="990" y="1158" class="small">Anyone with a share link can view that palette</text>
+
+  <path class="dashed" d="M730 1305H815"/>
+  <rect x="815" y="1240" width="570" height="130" rx="15" class="futurebox"/>
+  <text x="840" y="1278" class="heading">Future expanded release — separate approval</text>
+  <text x="840" y="1312" class="body">Package assets · validate scale/accuracy · approve deployment</text>
+  <text x="840" y="1342" class="small">Full scan output is local staging, not an automatic website update</text>
+  <path class="dashed" d="M1385 1305H1430V305H1385"/>
+  <text x="50" y="1440" class="heading">Full scan ≠ published app. Neon ≠ artwork-image storage.</text>
+  <text x="50" y="1476" class="subtitle">Solid arrows: implemented flows. Dashed arrows: release work that remains separate.</text>
+  <text x="50" y="1513" class="small">For current progress, read the scan's checkpoint and status files. Originals are retained; cleanup requires separate approval.</text>
+</svg>

@@ -4,6 +4,13 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "colors:supervise": "tsx scripts/supervise-color-scan.ts",
+    "colors:scan": "tsx scripts/run-color-scan.ts",
+    "colors:refresh": "tsx scripts/refresh-artwork-catalog.ts",
+    "colors:catalog": "tsx scripts/import-artwork-catalog.ts",
+    "colors:batch": "tsx scripts/process-color-batches.ts",
+    "colors:download": "tsx scripts/download-color-corpus.ts",
+    "colors:index": "tsx scripts/build-color-index.ts",
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
