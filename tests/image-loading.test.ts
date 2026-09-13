@@ -48,3 +48,17 @@ test("reports failure after both paths fail without an unbounded retry loop", as
 	);
 	assert.equal(calls, 2);
 });
+
+test("cancelling an image request does not start the fallback proxy", async () => {
+	const controller = new AbortController();
+	let calls = 0;
+	globalThis.fetch = async () => {
+		calls++;
+		controller.abort();
+		throw new DOMException("Cancelled", "AbortError");
+	};
+	await assert.rejects(fetchImageBlob(imageUrl, controller.signal), {
+		name: "AbortError",
+	});
+	assert.equal(calls, 1);
+});

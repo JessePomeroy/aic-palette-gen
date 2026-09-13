@@ -34,13 +34,19 @@ export interface ExtractedColor {
 /** Which extraction algorithm to use */
 export type ExtractionMode = "dominant" | "vibrant" | "ai";
 
-export async function fetchImageBlob(imageUrl: string): Promise<Blob> {
+export async function fetchImageBlob(
+	imageUrl: string,
+	signal?: AbortSignal,
+): Promise<Blob> {
 	const proxyUrl = `/api/image?${new URLSearchParams({ url: imageUrl })}`;
 	for (const url of [imageUrl, proxyUrl]) {
+		signal?.throwIfAborted();
 		try {
 			const response = await fetch(url, {
 				cache: "no-cache",
-				signal: AbortSignal.timeout(15000),
+				signal: signal
+					? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+					: AbortSignal.timeout(15000),
 			});
 			if (
 				!response.ok ||
@@ -49,6 +55,7 @@ export async function fetchImageBlob(imageUrl: string): Promise<Blob> {
 				continue;
 			return await response.blob();
 		} catch {
+			signal?.throwIfAborted();
 			// AIC may allow a browser while rejecting a server, or vice versa.
 		}
 	}

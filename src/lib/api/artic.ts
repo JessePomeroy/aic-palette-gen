@@ -11,15 +11,14 @@
  * - Some images return 403 (restricted/copyrighted) even with a valid image_id
  * - The search endpoint (`/artworks/search`) does NOT support `q=*` for browsing
  *   — use the main `/artworks` endpoint with pagination for random browsing
- * - IIIF images DO support CORS (access-control-allow-origin: *), but the
- *   browser's <img> tag must use crossorigin="anonymous" to avoid opaque cache
- *   entries that block subsequent fetch() calls
+ * - Image access can differ between browsers and servers; extraction uses a fallback.
  */
 
-const BASE_URL = 'https://api.artic.edu/api/v1';
+const BASE_URL = "https://api.artic.edu/api/v1";
 
 /** Fields we request from the API to minimize response size */
-const ARTWORK_FIELDS = 'id,title,artist_display,date_display,medium_display,image_id,thumbnail.alt_text,thumbnail.width,thumbnail.height';
+const ARTWORK_FIELDS =
+	"id,title,artist_title,artist_id,artist_display,date_display,date_start,date_end,medium_display,is_public_domain,copyright_notice,image_id,thumbnail.alt_text,thumbnail.width,thumbnail.height";
 
 /** Shape of an artwork returned by the API (trimmed to our requested fields) */
 export interface Artwork {
@@ -28,6 +27,12 @@ export interface Artwork {
 	artist_display: string;
 	date_display: string;
 	medium_display: string;
+	artist_title?: string | null;
+	artist_id?: number | null;
+	date_start?: number | null;
+	date_end?: number | null;
+	is_public_domain?: boolean;
+	copyright_notice?: string | null;
 	/** IIIF image identifier — null if no image exists for this artwork */
 	image_id: string | null;
 	thumbnail: {
@@ -39,12 +44,17 @@ export interface Artwork {
 
 /** Parameters for searching the collection */
 export interface SearchParams {
-	q?: string;        // Free-text query
-	artist?: string;   // Filter by artist name
-	medium?: string;   // Filter by medium (e.g. "Oil on canvas")
-	style?: string;    // Filter by style (e.g. "Impressionism")
-	page?: number;     // Pagination — 1-indexed
-	limit?: number;    // Results per page (max 100)
+	q?: string; // Free-text query
+	artist?: string; // Filter by artist name
+	medium?: string; // Filter by medium (e.g. "Oil on canvas")
+	style?: string; // Filter by style (e.g. "Impressionism")
+	artistId?: number;
+	publicDomain?: boolean;
+	fromYear?: number;
+	toYear?: number;
+	excludeId?: number;
+	page?: number; // Pagination — 1-indexed
+	limit?: number; // Results per page (max 100)
 }
 
 /** Paginated response wrapper from the API */
@@ -66,13 +76,16 @@ export interface SearchResponse {
  * to keep things simple and cacheable. The URL format follows the IIIF
  * Image API 2.0 spec: {base}/{id}/{region}/{size}/{rotation}/{quality}.{format}
  */
-export function getImageUrl(imageId: string, size: 'full' | 'large' | 'medium' | 'small' | 'thumb' = 'full'): string {
+export function getImageUrl(
+	imageId: string,
+	size: "full" | "large" | "medium" | "small" | "thumb" = "full",
+): string {
 	const sizes: Record<string, number> = {
-		full: 1686,   // Max resolution — good for detail views
-		large: 843,   // Half-res — good for main display + color extraction
-		medium: 400,  // Thumbnails in grid views
-		small: 200,   // Small thumbnails
-		thumb: 100    // Tiny previews
+		full: 1686, // Max resolution — good for detail views
+		large: 843, // Half-res — good for main display + color extraction
+		medium: 400, // Thumbnails in grid views
+		small: 200, // Small thumbnails
+		thumb: 100, // Tiny previews
 	};
 	return `https://www.artic.edu/iiif/2/${imageId}/full/${sizes[size]},/0/default.jpg`;
 }
@@ -86,30 +99,55 @@ export function getImageUrl(imageId: string, size: 'full' | 'large' | 'medium' |
  * Note: This uses /artworks/search (Elasticsearch), NOT /artworks (database).
  * The search endpoint does NOT work with `q=*` — use getRandomArtwork() for browsing.
  */
-export async function searchArtworks(params: SearchParams): Promise<SearchResponse> {
-	const { q, artist, medium, style, page = 1, limit = 20 } = params;
+export async function searchArtworks(
+	params: SearchParams,
+): Promise<SearchResponse> {
+	const res = await fetch(
+		`${BASE_URL}/artworks/search?${new URLSearchParams({ params: JSON.stringify(buildSearchQuery(params)) })}`,
+	);
+	if (!res.ok) throw new Error(`Artwork search failed (${res.status})`);
+	return res.json();
+}
 
-	// Build Elasticsearch query string with field-specific filters
-	const searchParts: string[] = [];
-	if (q) searchParts.push(q);
-	if (artist) searchParts.push(`artist_title:"${artist}"`);
-	if (medium) searchParts.push(`medium_display:"${medium}"`);
-	if (style) searchParts.push(`style_title:"${style}"`);
-
-	const query = searchParts.join(' AND ') || '*';
-
-	const paramsObj: Record<string, string | number> = {
-		q: query,
-		page,
-		limit,
-		fields: ARTWORK_FIELDS
+/** Structured clauses keep literal user input out of Elasticsearch query syntax. */
+export function buildSearchQuery(params: SearchParams) {
+	const must: object[] = [];
+	const filter: object[] = [{ exists: { field: "image_id" } }];
+	if (params.q?.trim())
+		must.push({
+			multi_match: {
+				query: params.q.trim(),
+				fields: ["title", "artist_title", "medium_display"],
+			},
+		});
+	if (params.artist?.trim())
+		must.push({ match_phrase: { artist_title: params.artist.trim() } });
+	if (params.medium?.trim())
+		must.push({ match: { medium_display: params.medium.trim() } });
+	if (params.style?.trim())
+		must.push({ match: { style_titles: params.style.trim() } });
+	if (params.artistId) filter.push({ term: { artist_id: params.artistId } });
+	if (params.publicDomain) filter.push({ term: { is_public_domain: true } });
+	if (params.fromYear !== undefined)
+		filter.push({ range: { date_end: { gte: params.fromYear } } });
+	if (params.toYear !== undefined)
+		filter.push({ range: { date_start: { lte: params.toYear } } });
+	return {
+		query: {
+			bool: {
+				must,
+				filter,
+				must_not: params.excludeId ? [{ term: { id: params.excludeId } }] : [],
+			},
+		},
+		page: params.page ?? 1,
+		limit: params.limit ?? 20,
+		fields: ARTWORK_FIELDS,
 	};
+}
 
-	const url = `${BASE_URL}/artworks/search?${new URLSearchParams(paramsObj as any).toString()}`;
-	const res = await fetch(url);
-	const json = await res.json();
-
-	return json;
+export function getArtworkUrl(id: number): string {
+	return `https://www.artic.edu/artworks/${id}`;
 }
 
 /**
@@ -144,8 +182,8 @@ export async function getRandomArtwork(): Promise<Artwork> {
 
 	const url = `${BASE_URL}/artworks?${new URLSearchParams({
 		page: String(randomPage),
-		limit: '1',
-		fields: ARTWORK_FIELDS
+		limit: "1",
+		fields: ARTWORK_FIELDS,
 	}).toString()}`;
 	const res = await fetch(url);
 	const json = await res.json();
@@ -159,8 +197,8 @@ export async function getRandomArtwork(): Promise<Artwork> {
  */
 export async function getArtworks(ids: number[]): Promise<Artwork[]> {
 	const url = `${BASE_URL}/artworks?${new URLSearchParams({
-		ids: ids.join(','),
-		fields: ARTWORK_FIELDS
+		ids: ids.join(","),
+		fields: ARTWORK_FIELDS,
 	}).toString()}`;
 	const res = await fetch(url);
 	const json = await res.json();
