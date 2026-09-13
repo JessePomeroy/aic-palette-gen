@@ -4,6 +4,8 @@
 
 `workbench-quality.mjs` checks completed and in-flight saves across count, mode, regeneration, and comparison changes; readable accent buttons; and clipboard-denial/retry feedback in the workbench and shared palette. It mounts the actual shared route component with fixture props through Vite, so use the **dev server**, not a production preview, for this suite. Its API routes fail closed to prevent accidental database/provider calls.
 
+It also checks that desktop/mobile actions, locked controls and modal tools share the current artwork accent; dark/light palettes retain readable text and focus indicators; and artwork selection/history restoration update the theme without changing global page colors.
+
 Start an isolated local dev server with empty provider/database settings, record its PID, and use an installed Playwright module/browser pair. Playwright is an optional verification tool, not a new production dependency or part of the default Node test suite.
 
 ```bash

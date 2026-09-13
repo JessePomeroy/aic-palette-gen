@@ -19,6 +19,8 @@
 
   /* warm accent for interactive elements */
   --accent: #b8a080;
+  --accent-foreground: #0a0a0a;
+  --accent-focus: var(--accent);
   --accent-hover: #d4c0a0;
   --accent-subtle: rgba(184, 160, 128, 0.1);
 }
@@ -74,8 +76,8 @@ input::placeholder {
 }
 input:focus, select:focus {
   outline: none;
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 1px var(--accent);
+  border-color: var(--accent-focus) !important;
+  box-shadow: 0 0 0 1px var(--accent-focus);
 }
 select option {
   background-color: var(--bg-surface);
@@ -89,17 +91,22 @@ select option {
   font-size: 12px;
 }
 .tool-button { cursor: pointer; background: var(--bg-elevated); }
+.palette-export { border-color: var(--border); }
+.palette-export:hover:not(:disabled), .tool-button:hover:not(:disabled) { border-color: var(--accent-focus); }
 button:disabled, select:disabled { opacity: .45; cursor: not-allowed; }
 button:focus-visible, summary:focus-visible, a:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-focus);
   outline-offset: 3px;
 }
 .workbench-panel { border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
 .workbench-panel summary { cursor: pointer; font-size: 13px; }
 .lock-button { width: 100%; padding: 8px 2px; font-size: 10px; border: 1px solid var(--border); border-radius: 0 0 6px 6px; cursor: pointer; }
-.lock-button.locked { background: var(--accent); color: #141414; }
+.lock-button.locked { background: var(--accent); color: var(--accent-foreground); }
 .history-item { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; cursor: pointer; }
-.history-item:hover { border-color: var(--accent); }
+.history-item:hover { border-color: var(--accent-focus); }
+
+/* Share inherited theme values with the native dialog without adding a layout box. */
+.workbench-theme { display: contents; }
 
 /* Desktop keeps the artwork and palette in view; longer tools live in a drawer. */
 .desktop-workbench {
@@ -134,13 +141,13 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .desktop-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .desktop-controls button, .desktop-controls select { min-height: 44px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; padding: 8px 12px; cursor: pointer; }
 .desktop-controls select { max-width: 140px; }
-.desktop-controls .desktop-random { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); font-weight: 600; min-width: 145px; }
+.desktop-controls .desktop-random { background: var(--accent); color: var(--accent-foreground); border-color: var(--accent); font-weight: 600; min-width: 145px; }
 .desktop-regenerate:hover, .desktop-cancel:hover { background: var(--bg-elevated); }
 .desktop-swatches { display: grid; grid-template-columns: repeat(var(--swatch-count), minmax(0, 7.5rem)); justify-content: center; gap: 6px; }
 .desktop-swatch { min-width: 0; }
 .desktop-color { width: 100%; height: clamp(56px, 10dvh, 110px); display: flex; align-items: flex-end; justify-content: center; padding: 10px 4px; border-radius: 6px 6px 0 0; cursor: pointer; font: 12px var(--font-mono); }
 .desktop-lock { width: 100%; min-height: 30px; padding: 5px; border: 1px solid var(--border); border-radius: 0 0 6px 6px; font-size: 11px; color: var(--text-secondary); cursor: pointer; }
-.desktop-lock.locked { background: var(--accent); color: var(--bg-primary); border-color: var(--accent); }
+.desktop-lock.locked { background: var(--accent); color: var(--accent-foreground); border-color: var(--accent); }
 .desktop-palette-empty { grid-column: 1 / -1; height: clamp(86px, calc(10dvh + 30px), 140px); display: grid; place-items: center; color: var(--text-secondary); font-size: 13px; }
 .desktop-palette-hint { margin-top: 8px; text-align: center; font-size: 11px; color: var(--text-secondary); }
 .desktop-nav button:active, .desktop-controls button:active, .desktop-color:active { transform: translateY(1px); }
@@ -209,7 +216,7 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 @keyframes match-spin { to { transform: rotate(360deg); } }
 .mobile-roll { display: flex; gap: 8px; }
 .mobile-roll button { min-height: 44px; border-radius: 6px; font-size: 13px; padding: 8px 12px; cursor: pointer; }
-.mobile-random { flex: 1; background: var(--accent); color: var(--bg-primary); font-weight: 600; }
+.mobile-random { flex: 1; background: var(--accent); color: var(--accent-foreground); font-weight: 600; }
 .mobile-cancel { border: 1px solid var(--border); }
 .mobile-nav { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--border); }
 .mobile-nav button { color: var(--text-secondary); }

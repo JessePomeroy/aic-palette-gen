@@ -29,7 +29,7 @@
         downloadFile,
     } from "$lib/export/palette";
     import { exportArtworkCard } from '$lib/export/artwork-card';
-    import { applyLocks, readableText } from '$lib/colors/workbench';
+    import { applyLocks, readableText, suggestTextColor } from '$lib/colors/workbench';
     import { createIndexedSearch } from '$lib/colors/indexed-search';
     import { HISTORY_KEY, parseHistory, rememberPalette, type RecentPalette } from '$lib/history';
     import PaletteEditor from '$lib/components/PaletteEditor.svelte';
@@ -161,6 +161,8 @@
         const sorted = [...colors].sort((a, b) => b.hsl.s - a.hsl.s);
         return sorted[0].hex;
     });
+    // Focus and hover accents must stay visible against the lightest dark UI surface.
+    let accentFocus = $derived(suggestTextColor(accentColor, '#222222'));
 
     // ── lifecycle ──
 
@@ -590,7 +592,7 @@
                     type="submit"
                     disabled={searchBusy}
                     class="shrink-0 rounded-md px-3 py-2 text-sm cursor-pointer hover:underline"
-                    style="background-color: {accentColor}; color: {readableText(accentColor)};"
+                    style="background-color: var(--accent); color: var(--accent-foreground);"
                 >
                     search
                 </button>
@@ -744,7 +746,7 @@
                             onclick={handleShare}
                             disabled={sharing || busy || !colors.length}
                             class="rounded-md px-3 py-1.5 text-sm cursor-pointer"
-                            style="background-color: {accentColor}; color: {readableText(accentColor)};"
+                            style="background-color: var(--accent); color: var(--accent-foreground);"
                         >
                             share
                         </button>
@@ -762,8 +764,8 @@
                             <button
                                 onclick={() => handleExport(fmt)}
                                 disabled={busy || !colors.length}
-                                class="rounded-md border px-2.5 py-1.5 text-xs uppercase cursor-pointer"
-                                style="border-color: var(--border); color: var(--text-secondary);"
+                                class="palette-export rounded-md border px-2.5 py-1.5 text-xs uppercase cursor-pointer"
+                                style="color: var(--text-secondary);"
                             >
                                 {fmt === "ase" ? ".ase" : fmt}
                             </button>
@@ -870,6 +872,7 @@
     </main>
 {/snippet}
 
+<div class="workbench-theme" style:--accent={accentColor} style:--accent-foreground={readableText(accentColor)} style:--accent-focus={accentFocus}>
 {#if mobile}
     <main class="mobile-workbench">
         <header class="mobile-header">
@@ -972,3 +975,4 @@
             {/if}
         </div>
     </dialog>
+</div>

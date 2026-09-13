@@ -1,5 +1,7 @@
 // Exercises real Svelte components with synthetic data; never contacts a database.
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { contrastRatio } from "../../src/lib/colors/workbench.ts";
 
 const playwright = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
@@ -7,6 +9,8 @@ const engine = process.argv[2] || "chromium";
 assert.ok(["chromium", "webkit"].includes(engine));
 const base = process.env.WORKBENCH_TEST_URL || "http://127.0.0.1:5185";
 assert.ok(["127.0.0.1", "localhost"].includes(new URL(base).hostname));
+const output = process.env.WORKBENCH_TEST_OUTPUT;
+if (output) await mkdir(output, { recursive: true });
 const browser = await playwright[engine].launch({ headless: true });
 const results = [];
 const failures = [];
@@ -27,9 +31,9 @@ function deferred() {
 	return { promise, resolve };
 }
 
-async function session() {
+async function session(viewport = { width: 1440, height: 900 }) {
 	const context = await browser.newContext({
-		viewport: { width: 1440, height: 900 },
+		viewport,
 		reducedMotion: "reduce",
 	});
 	const page = await context.newPage();
@@ -52,7 +56,7 @@ async function session() {
 		}),
 		"base64",
 	);
-	const state = { saveGate: null, imageGate: null, saves: [] };
+	const state = { saveGate: null, imageGate: null, saves: [], artwork, image };
 	await page.addInitScript(() => {
 		window.fixtureClipboard = { denied: false, copies: [] };
 		Object.defineProperty(navigator, "share", {
@@ -77,11 +81,14 @@ async function session() {
 		const url = new URL(route.request().url());
 		if (url.hostname === "api.artic.edu")
 			return route.fulfill({
-				json: { pagination: { total: 1 }, data: [artwork] },
+				json: { pagination: { total: 1 }, data: [state.artwork] },
 			});
 		if (url.hostname === "www.artic.edu" || url.pathname === "/api/image") {
 			if (state.imageGate) await state.imageGate.promise;
-			return route.fulfill({ contentType: "image/jpeg", body: image });
+			return route.fulfill({
+				contentType: "image/jpeg",
+				body: url.href.includes(state.artwork.image_id) ? state.image : image,
+			});
 		}
 		if (url.pathname === "/api/palette") {
 			state.saves.push(route.request().postDataJSON());
@@ -109,8 +116,8 @@ async function session() {
 async function ready(page) {
 	await page.waitForFunction(
 		() =>
-			document.querySelectorAll("main .desktop-swatch").length >= 5 &&
-			!document.querySelector("main select")?.disabled,
+			document.querySelectorAll("main .desktop-swatch, main .mobile-swatch")
+				.length >= 5 && !document.querySelector("main select")?.disabled,
 	);
 }
 async function open(page, name) {
@@ -167,8 +174,8 @@ async function mutate(page, action) {
 		await close(page);
 	}
 }
-async function check(name, run) {
-	const fixture = await session();
+async function check(name, run, viewport) {
+	const fixture = await session(viewport);
 	try {
 		await run(fixture);
 		assert.deepEqual(fixture.errors, []);
@@ -182,7 +189,176 @@ async function check(name, run) {
 	}
 }
 
+async function renderedColors(locator) {
+	return locator.evaluate((node) => {
+		const style = getComputedStyle(node);
+		const hex = (rgb) =>
+			"#" +
+			rgb
+				.match(/\d+/g)
+				.slice(0, 3)
+				.map((value) => Number(value).toString(16).padStart(2, "0"))
+				.join("");
+		return {
+			text: hex(style.color),
+			background: hex(style.backgroundColor),
+			border: hex(style.borderTopColor),
+		};
+	});
+}
+
+async function checkTheme(page, mobile) {
+	const random = await renderedColors(
+		page.locator(".desktop-random, .mobile-random"),
+	);
+	await open(page, "Search");
+	const search = await renderedColors(
+		page
+			.getByRole("dialog")
+			.getByRole("button", { name: "search", exact: true }),
+	);
+	assert.equal(
+		random.background,
+		search.background,
+		"Main and drawer actions must share the artwork accent",
+	);
+	assert.ok(
+		contrastRatio(random.text, random.background) >= 4.5,
+		"Random text must remain readable",
+	);
+	const input = page.getByRole("textbox", { name: "Search artworks" });
+	await input.focus();
+	const focus = await renderedColors(input);
+	assert.ok(
+		contrastRatio(focus.border, focus.background) >= 3,
+		"The accent focus ring must remain visible",
+	);
+	await close(page);
+	await page.locator("main .desktop-lock, main .mobile-swatch").first().click();
+	if (!mobile) {
+		const locked = await renderedColors(
+			page.locator(".desktop-lock.locked").first(),
+		);
+		assert.equal(locked.background, search.background);
+		assert.ok(contrastRatio(locked.text, locked.background) >= 4.5);
+	}
+	await open(page, "Palette");
+	await ready(page);
+	const editorLock = await renderedColors(
+		page.getByRole("dialog").locator(".lock-button.locked").first(),
+	);
+	assert.equal(
+		editorLock.background,
+		search.background,
+		"A modal must inherit the same artwork theme",
+	);
+	assert.ok(contrastRatio(editorLock.text, editorLock.background) >= 4.5);
+	await close(page);
+	await page.locator("main .desktop-lock, main .mobile-swatch").first().click();
+	await open(page, mobile ? "Save" : "Save & share");
+	const share = await renderedColors(
+		page
+			.getByRole("dialog")
+			.getByRole("button", { name: "share", exact: true }),
+	);
+	assert.equal(share.background, search.background);
+	const download = page
+		.getByRole("dialog")
+		.getByRole("button", { name: "json", exact: true });
+	await download.hover();
+	assert.equal(
+		(await renderedColors(download)).border,
+		focus.border,
+		"Export hover borders must use the visible theme accent",
+	);
+	await close(page);
+	assert.equal(
+		await page.evaluate(() =>
+			getComputedStyle(document.documentElement)
+				.getPropertyValue("--accent")
+				.trim(),
+		),
+		"#b8a080",
+		"Artwork themes must not mutate the global page theme",
+	);
+	return random;
+}
+
 try {
+	for (const mobile of [false, true]) {
+		await check(
+			`artwork theme follows selection and history on ${mobile ? "mobile" : "desktop"}`,
+			async ({ page, state }) => {
+				const original = await checkTheme(page, mobile);
+				if (output)
+					await page.screenshot({
+						path: resolve(
+							output,
+							`${engine}-theme-${mobile ? "mobile" : "desktop"}-dark.png`,
+						),
+					});
+				state.artwork = {
+					...artwork,
+					id: 202,
+					title: "Blue palette fixture",
+					image_id: "00000000-0000-0000-0000-000000000202",
+					thumbnail: { ...artwork.thumbnail, alt_text: "Blue fixture" },
+				};
+				state.image = Buffer.from(
+					await page.evaluate(() => {
+						const canvas = document.createElement("canvas");
+						canvas.width = 900;
+						canvas.height = 600;
+						const ctx = canvas.getContext("2d");
+						["#abcfe9", "#c1e5d9", "#c6cdf0", "#dae6f0", "#aadcec"].forEach(
+							(color, i) => {
+								ctx.fillStyle = color;
+								ctx.fillRect(i * 180, 0, 180, 600);
+							},
+						);
+						return canvas.toDataURL("image/jpeg").split(",")[1];
+					}),
+					"base64",
+				);
+				await page.locator(".desktop-random, .mobile-random").click();
+				await page
+					.getByRole("img", { name: "Blue fixture", exact: true })
+					.waitFor();
+				await ready(page);
+				const changed = await checkTheme(page, mobile);
+				if (output)
+					await page.screenshot({
+						path: resolve(
+							output,
+							`${engine}-theme-${mobile ? "mobile" : "desktop"}-light.png`,
+						),
+					});
+				assert.notEqual(
+					changed.background,
+					original.background,
+					"The artwork change must update all themed controls",
+				);
+				assert.equal(original.text, "#ffffff");
+				assert.equal(changed.text, "#000000");
+				await open(page, "History");
+				await page
+					.getByRole("dialog")
+					.locator(".history-item")
+					.filter({ hasText: artwork.title })
+					.first()
+					.click();
+				await page.waitForFunction(
+					() => !document.querySelector("dialog").open,
+				);
+				assert.deepEqual(
+					await renderedColors(page.locator(".desktop-random, .mobile-random")),
+					original,
+					"Restoring history must restore its accent",
+				);
+			},
+			mobile ? { width: 390, height: 844 } : undefined,
+		);
+	}
 	for (const action of ["count", "mode", "regenerate", "variant"]) {
 		for (const pending of [false, true]) {
 			await check(
