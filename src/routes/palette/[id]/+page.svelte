@@ -15,6 +15,16 @@
 
 	let copiedHex = $state('');
 	let accentColor = $derived('#b8a080'); // static on shared page since we don't extract colors
+	let imageUnavailable = $state(false);
+	$effect(() => { artwork?.image_id; imageUnavailable = false; });
+
+	function fallbackImage(event: Event) {
+		const img = event.currentTarget;
+		if (!(img instanceof HTMLImageElement)) return;
+		if (img.src.startsWith('https://www.artic.edu/iiif/')) {
+			img.src = `/api/image?${new URLSearchParams({ url: img.src })}`;
+		} else imageUnavailable = true;
+	}
 
 	function brightenBorder(e: MouseEvent) {
 		(e.currentTarget as HTMLElement).style.borderColor = accentColor;
@@ -81,13 +91,16 @@
 		{#if artwork}
 			<!-- artwork image -->
 			<div class="mb-6 sm:mb-8">
-				{#if artwork.image_id}
+				{#if artwork.image_id && !imageUnavailable}
 					<img
 						src={getImageUrl(artwork.image_id, 'large')}
+						onerror={fallbackImage}
 						alt={artwork.thumbnail?.alt_text || artwork.title}
 						class="artwork-image w-full rounded-lg sm:w-auto sm:max-h-[65vh]"
 						style="box-shadow: 0 8px 30px rgba(0,0,0,0.4);"
 					/>
+				{:else}
+					<p role="status" class="text-sm">Artwork image is unavailable. Your saved palette is still available below.</p>
 				{/if}
 			</div>
 
@@ -113,7 +126,7 @@
 				{#each colors as color}
 					<button
 						onclick={() => copyColor(color.hex)}
-						class="group relative flex-1 cursor-pointer"
+						class="group relative min-w-0 flex-1 cursor-pointer"
 						title="copy {color.hex}"
 					>
 						<div
@@ -121,7 +134,7 @@
 							style="background-color: {color.hex};"
 						>
 							<span
-								class="font-mono text-[10px] opacity-0 transition-opacity group-hover:opacity-100 sm:text-xs"
+								class="max-w-full truncate font-mono text-[10px] opacity-0 transition-opacity group-hover:opacity-100 sm:text-xs"
 								style="color: {contrastText(color.hex)};"
 							>
 								{copiedHex === color.hex ? 'copied' : color.hex}
@@ -135,7 +148,7 @@
 			{#if colors.some(c => c.name)}
 				<div class="mt-2 flex">
 					{#each colors as color}
-						<div class="flex-1 text-center">
+						<div class="min-w-0 flex-1 break-words text-center">
 							<span class="text-[9px] italic sm:text-[10px]" style="color: var(--text-muted);">
 								{color.name || ''}
 							</span>

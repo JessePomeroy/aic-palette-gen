@@ -8,21 +8,24 @@
  * Schema: see initDb() for the CREATE TABLE statement.
  */
 
-import { neon } from '@neondatabase/serverless';
-import { env } from '$env/dynamic/private';
+import { neon } from "@neondatabase/serverless";
+import { env } from "$env/dynamic/private";
 
 /** Get a SQL tagged template function connected to our Neon database */
-const sql = neon(env.DATABASE_URL || '');
+function getSql() {
+	if (!env.DATABASE_URL) throw new Error("Database is not configured");
+	return neon(env.DATABASE_URL);
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface SavedPalette {
-	id: string;            // UUID used in the shareable URL
-	artwork_id: number;    // Art Institute artwork numeric ID
-	colors: string;        // JSON string of ExtractedColor[]
-	mode: string;          // 'dominant' | 'vibrant'
-	count: number;         // Number of colors (5-8)
-	created_at: string;    // ISO timestamp
+	id: string; // UUID used in the shareable URL
+	artwork_id: number; // Art Institute artwork numeric ID
+	colors: string; // JSON string of ExtractedColor[]
+	mode: string; // 'dominant' | 'vibrant'
+	count: number; // Number of colors (5-8)
+	created_at: string; // ISO timestamp
 }
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
@@ -37,6 +40,7 @@ export async function savePalette(palette: {
 	mode: string;
 	count: number;
 }): Promise<void> {
+	const sql = getSql();
 	await sql`
 		INSERT INTO palettes (id, artwork_id, colors, mode, count)
 		VALUES (${palette.id}, ${palette.artworkId}, ${JSON.stringify(palette.colors)}, ${palette.mode}, ${palette.count})
@@ -48,6 +52,7 @@ export async function savePalette(palette: {
  * Returns null if not found.
  */
 export async function getPalette(id: string): Promise<SavedPalette | null> {
+	const sql = getSql();
 	const rows = await sql`
 		SELECT * FROM palettes WHERE id = ${id}
 	`;
@@ -59,6 +64,7 @@ export async function getPalette(id: string): Promise<SavedPalette | null> {
  * Safe to call multiple times (uses IF NOT EXISTS).
  */
 export async function initDb(): Promise<void> {
+	const sql = getSql();
 	await sql`
 		CREATE TABLE IF NOT EXISTS palettes (
 			id TEXT PRIMARY KEY,
