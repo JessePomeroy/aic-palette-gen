@@ -114,6 +114,7 @@
     let aiDescription = $state("");
     let aiLoading = $state(false);
     let copiedHex = $state("");
+    let copyStatus = $state("");
     let paletteError = $state("");
     let paletteLoading = $state(false);
     let artworkRequest = 0;
@@ -185,11 +186,15 @@
         catch { historyStatus = 'History is available for this session only.'; }
     }
 
-    function resetPalette() {
+    function invalidateShare() {
         ++shareRequest;
         sharing = false;
         shareStatus = '';
         shareUrl = '';
+    }
+
+    function resetPalette() {
+        invalidateShare();
         ++paletteRequest;
         ++comparisonRequest;
         colors = [];
@@ -231,6 +236,7 @@
     }
 
     function acceptPalette(mode: ExtractionMode, variant: PaletteVariant) {
+        invalidateShare();
         variants = { ...variants, [mode]: variant };
         colors = applyLocks(variant.colors, locks, colorCount);
         aiDescription = variant.description;
@@ -304,17 +310,6 @@
         finally { cardBusy = false; }
     }
 
-    // ── hover handlers (inline multiple statements don't work in Svelte 5 SSR) ──
-    function brightenBg(e: MouseEvent) {
-        const target = e.currentTarget as HTMLElement;
-        target.style.backgroundColor = accentColor;
-        target.style.filter = "brightness(1.1)";
-    }
-    function resetBg(e: MouseEvent) {
-        const target = e.currentTarget as HTMLElement;
-        target.style.backgroundColor = accentColor;
-        target.style.filter = "none";
-    }
     // ── data loading ──
 
     async function loadRandom() {
@@ -454,6 +449,8 @@
     }
 
     async function regeneratePalette() {
+        // Invalidate before awaiting extraction: a previous save may finish meanwhile.
+        invalidateShare();
         const request = ++paletteRequest;
         paletteError = "";
         paletteLoading = false;
@@ -496,11 +493,13 @@
     // ── user actions ──
 
     async function copyColor(hex: string) {
+        copiedHex = "";
+        copyStatus = "";
         try {
             await navigator.clipboard.writeText(hex);
             copiedHex = hex;
             setTimeout(() => (copiedHex = ""), 1500);
-        } catch { shareStatus = 'Clipboard unavailable. Select and copy the hex value.'; }
+        } catch { copyStatus = `Clipboard unavailable. Select and copy ${hex}.`; }
     }
 
     async function handleShare() {
@@ -590,10 +589,8 @@
                 <button
                     type="submit"
                     disabled={searchBusy}
-                    class="shrink-0 rounded-md px-3 py-2 text-sm cursor-pointer"
-                    style="background-color: {accentColor}; color: var(--bg-primary);"
-                    onmouseenter={brightenBg}
-                    onmouseleave={resetBg}
+                    class="shrink-0 rounded-md px-3 py-2 text-sm cursor-pointer hover:underline"
+                    style="background-color: {accentColor}; color: {readableText(accentColor)};"
                 >
                     search
                 </button>
@@ -747,7 +744,7 @@
                             onclick={handleShare}
                             disabled={sharing || busy || !colors.length}
                             class="rounded-md px-3 py-1.5 text-sm cursor-pointer"
-                            style="background-color: {accentColor}; color: var(--bg-primary);"
+                            style="background-color: {accentColor}; color: {readableText(accentColor)};"
                         >
                             share
                         </button>
@@ -868,7 +865,7 @@
                     <p class="desktop-palette-empty">{busy ? 'Your palette is on its way…' : 'Choose an artwork to find its colors.'}</p>
                 {/each}
             </div>
-            <p class="desktop-palette-hint">{locks.some(Boolean) ? `${locks.filter(Boolean).length} locked · Random searches ${indexedCount ? `${indexedCount.toLocaleString()} indexed artworks` : 'the artwork index'} for every locked color.` : 'Click a swatch to copy. Lock colors to guide the next artwork.'}</p>
+            <p class="desktop-palette-hint" role="status" style="user-select: text;">{copyStatus || (locks.some(Boolean) ? `${locks.filter(Boolean).length} locked · Random searches ${indexedCount ? `${indexedCount.toLocaleString()} indexed artworks` : 'the artwork index'} for every locked color.` : 'Click a swatch to copy. Lock colors to guide the next artwork.')}</p>
         </section>
     </main>
 {/snippet}
@@ -955,6 +952,7 @@
                 {@render discoveryPanel()}
             {:else if activePanel === 'palette'}
                 {@render controlsPanel()}
+                {#if copyStatus}<p role="status" class="mb-4 text-sm" style="user-select: text;">{copyStatus}</p>{/if}
                 {#if paletteError}<p role="status" class="mb-4 text-sm">{paletteError}</p>{/if}
                 {#if aiDescription}<p class="mb-4 text-sm">{aiDescription}</p>{/if}
                 {#if colors.length}

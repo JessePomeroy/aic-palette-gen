@@ -14,6 +14,7 @@
 	const exportFormats = ['json', 'css', 'png', 'ase'] as const;
 
 	let copiedHex = $state('');
+	let copyStatus = $state('');
 	let accentColor = $derived('#b8a080'); // static on shared page since we don't extract colors
 	let imageUnavailable = $state(false);
 	$effect(() => { artwork?.image_id; imageUnavailable = false; });
@@ -33,10 +34,14 @@
 		(e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
 	}
 
-	function copyColor(hex: string) {
-		navigator.clipboard.writeText(hex);
-		copiedHex = hex;
-		setTimeout(() => copiedHex = '', 1500);
+	async function copyColor(hex: string) {
+		copiedHex = '';
+		copyStatus = '';
+		try {
+			await navigator.clipboard.writeText(hex);
+			copiedHex = hex;
+			setTimeout(() => copiedHex = '', 1500);
+		} catch { copyStatus = `Clipboard unavailable. Select and copy ${hex}.`; }
 	}
 
 	async function handleExport(format: 'json' | 'css' | 'png' | 'ase') {
@@ -159,6 +164,7 @@
 		</div>
 
 		<!-- export + info -->
+		{#if copyStatus}<p role="status" class="mb-4 text-sm" style="user-select: text;">{copyStatus}</p>{/if}
 		<div class="flex flex-wrap items-center gap-3">
 			<span class="text-xs" style="color: var(--text-muted);">
 				{palette.count} colors · {palette.mode}
