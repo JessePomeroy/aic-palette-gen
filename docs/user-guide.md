@@ -100,9 +100,12 @@ History is local to that browser and origin. It does not synchronize across devi
 | CSS | Numbered custom properties such as `--color-1` and `--color-1-rgb`; web styling |
 | PNG swatch strip | An 800 × 200 image with color bands and hex labels; visual reference |
 | Adobe ASE | Named RGB swatches; import into software supporting Adobe Swatch Exchange |
-| Artwork card | A 1200 × 1440 PNG containing artwork, palette, hex values, museum link, attribution, and rights text |
+| Classic artwork image | The original 1200 × 1440 PNG layout with artwork, palette, hex values, attribution, and museum link; selected by default |
+| Card | A 1200 × 1680 framed PNG containing the uncropped artwork, selected palette, hex values, museum link, attribution, and rights text |
 
 The ordinary palette exports are produced in the browser. The artwork card also needs the selected museum image to load. A JSON palette export is not a complete backup of history, locks, or artwork metadata. ASE names use the hex values; do not assume optional poetic Tone names become ASE swatch names.
+
+In Save & share, choose **Classic** to keep the original export or **Card** to preview the cursive design. The choice lasts for the current page session. The card frame borrows colors from your selected palette, with self-hosted Allura and Dancing Script fonts and a shaped title banner. Five or six swatches share one row; seven or eight use two rows. Its preview and PNG use the same HTML/CSS layout; the original image is fitted without cropping. Both exports remain local to your browser and do not save a shared palette or call Tone.
 
 Image requests use the museum's reported source width to avoid asking for an enlargement that its image server rejects. This applies to artwork display, local extraction, Tone image preparation, thumbnails, shared views, and card exports. If source dimensions are missing, the existing size tier is used; unrelated museum outages can still make an image unavailable.
 

@@ -29,10 +29,12 @@
         downloadFile,
     } from "$lib/export/palette";
     import { exportArtworkCard } from '$lib/export/artwork-card';
+    import { exportCard } from '$lib/export/card';
     import { applyLocks, readableText, suggestTextColor } from '$lib/colors/workbench';
     import { createIndexedSearch } from '$lib/colors/indexed-search';
     import { HISTORY_KEY, parseHistory, rememberPalette, type RecentPalette } from '$lib/history';
     import PaletteEditor from '$lib/components/PaletteEditor.svelte';
+    import ArtworkCard from '$lib/components/ArtworkCard.svelte';
     import ContrastChecker from '$lib/components/ContrastChecker.svelte';
     import ModeComparison, { type PaletteVariant } from '$lib/components/ModeComparison.svelte';
 
@@ -134,6 +136,7 @@
     let historyStatus = $state('');
     let cardBusy = $state(false);
     let cardStatus = $state('');
+    let cardFormat = $state<'classic' | 'card'>('classic');
     let artistFilter = $state('');
     let mediumFilter = $state('');
     let periodFilter = $state('');
@@ -303,13 +306,14 @@
         if (!artwork || !colors.length || cardBusy) return;
         const selected = artwork;
         const palette = [...colors];
+        const format = cardFormat;
         cardBusy = true;
         cardStatus = '';
         try {
-            const blob = await exportArtworkCard(selected, palette);
-            downloadFile(blob, `chroma-${selected.id}-artwork-card.png`);
-            cardStatus = 'Artwork card downloaded.';
-        } catch { cardStatus = 'Could not load the artwork for export. Please try again.'; }
+            const blob = await (format === 'card' ? exportCard : exportArtworkCard)(selected, palette);
+            downloadFile(blob, `chroma-${selected.id}-${format === 'card' ? 'card' : 'artwork-card'}.png`);
+            cardStatus = format === 'card' ? 'Card downloaded.' : 'Artwork card downloaded.';
+        } catch { cardStatus = 'Could not create the artwork card. Please try again.'; }
         finally { cardBusy = false; }
     }
 
@@ -736,8 +740,26 @@
 {/snippet}
 
 {#snippet exportPanel()}
+<fieldset class="card-format" disabled={cardBusy}>
+    <legend class="text-xs mb-2">Artwork + palette image</legend>
+    <div class="card-format-options">
+        <label class="card-format-option">
+            <input type="radio" name="card-format" value="classic" bind:group={cardFormat} onchange={() => cardStatus = ''} />
+            <span>Classic<span class="card-format-description">Original layout</span></span>
+        </label>
+        <label class="card-format-option">
+            <input type="radio" name="card-format" value="card" bind:group={cardFormat} onchange={() => cardStatus = ''} />
+            <span>Card</span>
+        </label>
+    </div>
+</fieldset>
+{#if cardFormat === 'card' && artwork && colors.length}
+    <div class="artwork-card-preview">
+        <ArtworkCard {artwork} {colors} />
+    </div>
+{/if}
 <div class="flex flex-wrap items-center gap-3 my-5">
-                        <button class="tool-button" disabled={busy || cardBusy || Boolean(paletteError)} onclick={downloadCard}>{cardBusy ? "Creating card…" : "Download artwork + palette card"}</button>
+                        <button class="tool-button" disabled={busy || cardBusy || !artwork || !colors.length || Boolean(paletteError)} onclick={downloadCard}>{cardBusy ? "Creating card…" : cardFormat === 'card' ? 'Download card' : 'Download artwork + palette card'}</button>
                         <span role="status" class="text-xs">{cardStatus}</span>
                     </div>
 

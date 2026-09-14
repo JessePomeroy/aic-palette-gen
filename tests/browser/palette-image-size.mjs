@@ -171,6 +171,12 @@ try {
 				.click();
 			const download = await downloading;
 			assert.equal(await download.failure(), null);
+			await page.getByRole("radio", { name: "Card", exact: true }).check();
+			const cardDownload = page.waitForEvent("download");
+			await page
+				.getByRole("button", { name: "Download card", exact: true })
+				.click();
+			assert.equal(await (await cardDownload).failure(), null);
 			assert.ok(
 				widths.length > 0 &&
 					widths.every((width) => width > 0 && width <= fixture.width),

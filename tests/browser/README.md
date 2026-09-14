@@ -6,7 +6,9 @@
 
 It also checks that desktop/mobile actions, locked controls and modal tools share the current artwork accent; dark/light palettes retain readable text and focus indicators; and artwork selection/history restoration update the theme without changing global page colors.
 
-`palette-image-size.mjs` replays the museum's no-enlargement responses for narrow artworks. It checks initial load, refresh, count changes, mode comparison, and artwork-card downloads on desktop/mobile without contacting the museum.
+`artwork-card.mjs` verifies Classic remains the default and exports without script fonts, switching to Card and back, choice retention within the page session, and both PNG formats. Card checks cover five/eight swatches, long titles, landscape/portrait artwork, mobile layout, fonts, exact swatch pixels, all four artwork corners, and failed-image/font recovery. All artwork/API responses are synthetic fixtures. Optional screenshots include both downloaded formats and the card preview.
+
+`palette-image-size.mjs` replays the museum's no-enlargement responses for narrow artworks. It checks initial load, refresh, count changes, mode comparison, and both Classic/Card downloads on desktop/mobile without contacting the museum.
 
 Start an isolated local dev server with empty provider/database settings, record its PID, and use an installed Playwright module/browser pair. Playwright is an optional verification tool, not a new production dependency or part of the default Node test suite.
 
@@ -28,6 +30,12 @@ env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
 
 env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node --import tsx tests/browser/workbench-quality.mjs webkit
+
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+  node tests/browser/artwork-card.mjs chromium
+
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+  node tests/browser/artwork-card.mjs webkit
 
 env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node tests/browser/palette-image-size.mjs chromium
