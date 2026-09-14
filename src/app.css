@@ -107,7 +107,8 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 
 /* Share inherited theme values with the native dialog without adding a layout box. */
 .workbench-theme { display: contents; }
-.artwork-card-preview { width: 100%; max-width: 28rem; margin-inline: auto; }
+/* Reserve the taller Card format's space for both previews, including loading. */
+.artwork-card-preview { display: grid; align-items: start; width: 100%; max-width: 28rem; aspect-ratio: 5 / 7; margin-inline: auto; }
 .card-format { min-width: 0; margin-bottom: 1rem; }
 .card-format-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; width: 100%; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); }
 .card-format-option { position: relative; display: grid; place-items: center; min-height: 44px; padding: 8px 16px; border-radius: 5px; font-size: .8rem; color: var(--text-secondary); cursor: pointer; }

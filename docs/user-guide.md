@@ -39,6 +39,8 @@ Manually choosing a search result does **not** enforce your locked-color constra
 
 The unlocked implementation samples among at most the first 10,000 listing positions and tries up to ten metadata candidates to find an image ID. It does not apply the discovery form's filters to Random. “Random” should not be described as guaranteed coverage of every museum artwork.
 
+Search and unlocked Random exclude the museum's **Archives (groupings)** category, which contains collection-level records and archive placeholder images. This is a metadata filter, not a color filter: monochrome artwork, photographs, and records without a type classification remain eligible. Previously saved palettes and history are not removed.
+
 ## Understand the three palette modes
 
 | Mode | What it does | What it does not promise |
@@ -105,7 +107,7 @@ History is local to that browser and origin. It does not synchronize across devi
 
 The ordinary palette exports are produced in the browser. The artwork card also needs the selected museum image to load. A JSON palette export is not a complete backup of history, locks, or artwork metadata. ASE names use the hex values; do not assume optional poetic Tone names become ASE swatch names.
 
-In Save & share, choose **Classic** to keep the original export or **Card** to preview the cursive design. The choice lasts for the current page session. The card frame borrows colors from your selected palette, with self-hosted Allura and Dancing Script fonts and a shaped title banner. Five or six swatches share one row; seven or eight use two rows. Its preview and PNG use the same HTML/CSS layout; the original image is fitted without cropping. Both exports remain local to your browser and do not save a shared palette or call Tone.
+In Save & share, choose **Classic** for the original design or **Card** for the cursive design. Both show a preview in the same reserved space, so switching formats does not move the download and share controls. Each keeps its original proportions; Classic previews the actual PNG output. The choice lasts for the current page session. The card frame borrows colors from your selected palette, with self-hosted Allura and Dancing Script fonts and a shaped title banner. Five or six swatches share one row; seven or eight use two rows. Its preview and PNG use the same HTML/CSS layout; the original image is fitted without cropping. Both exports remain local to your browser and do not save a shared palette or call Tone.
 
 Image requests use the museum's reported source width to avoid asking for an enlargement that its image server rejects. This applies to artwork display, local extraction, Tone image preparation, thumbnails, shared views, and card exports. If source dimensions are missing, the existing size tier is used; unrelated museum outages can still make an image unavailable.
 

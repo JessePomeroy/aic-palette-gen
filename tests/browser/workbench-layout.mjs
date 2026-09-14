@@ -99,17 +99,41 @@ async function session(
 		waitForIndex: null,
 		lockHex: "#ff0000",
 		current: artwork(),
+		randomCandidates: 0,
 	};
 	await page.route("**/*", async (route) => {
 		const url = new URL(route.request().url());
 		if (url.hostname === "api.artic.edu") {
-			const rows = url.pathname.endsWith("/search")
+			const searching = url.pathname.endsWith("/search");
+			if (searching) {
+				const query = JSON.parse(url.searchParams.get("params"));
+				assert.ok(
+					query.query.bool.must_not.some(
+						(clause) => clause.term?.artwork_type_id === 45,
+					),
+					"Search excludes archival groupings at the museum query",
+				);
+			}
+			const archivalCandidate =
+				!searching &&
+				url.searchParams.has("page") &&
+				++state.randomCandidates === 1;
+			const rows = searching
 				? Array.from({ length: 12 }, (_, i) => ({
 						...artwork(202),
 						id: 202 + i,
 						title: `Portrait study ${i + 1} — browser layout fixture`,
 					}))
-				: [state.current];
+				: [
+						archivalCandidate
+							? {
+									...state.current,
+									id: 262367,
+									artwork_type_id: 45,
+									image_id: "archival-placeholder",
+								}
+							: state.current,
+					];
 			return route.fulfill({
 				json: {
 					pagination: {
@@ -123,6 +147,10 @@ async function session(
 			});
 		}
 		if (url.hostname === "www.artic.edu" || url.pathname === "/api/image") {
+			assert.ok(
+				!url.href.includes("archival-placeholder"),
+				"The archival placeholder is never loaded or analyzed",
+			);
 			if (state.imageFails)
 				return route.fulfill({ status: 503, body: "Fixture unavailable" });
 			return route.fulfill({
@@ -292,6 +320,11 @@ try {
 	}
 	await fixturePage.close();
 	const { page, context, state } = await session();
+	assert.equal(
+		state.randomCandidates,
+		2,
+		"Random skips the archival grouping and loads the next artwork",
+	);
 	for (const [width, height] of [
 		[1024, 768],
 		[1199, 550],

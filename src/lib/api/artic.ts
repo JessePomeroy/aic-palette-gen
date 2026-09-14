@@ -15,10 +15,12 @@
  */
 
 const BASE_URL = "https://api.artic.edu/api/v1";
+// AIC's "Archives (groupings)" records represent collections, not individual works.
+const ARCHIVAL_GROUPING_TYPE_ID = 45;
 
 /** Fields we request from the API to minimize response size */
 const ARTWORK_FIELDS =
-	"id,title,artist_title,artist_id,artist_display,date_display,date_start,date_end,medium_display,is_public_domain,copyright_notice,image_id,thumbnail.alt_text,thumbnail.width,thumbnail.height";
+	"id,title,artist_title,artist_id,artist_display,date_display,date_start,date_end,medium_display,is_public_domain,copyright_notice,artwork_type_id,image_id,thumbnail.alt_text,thumbnail.width,thumbnail.height";
 
 /** Shape of an artwork returned by the API (trimmed to our requested fields) */
 export interface Artwork {
@@ -33,6 +35,7 @@ export interface Artwork {
 	date_end?: number | null;
 	is_public_domain?: boolean;
 	copyright_notice?: string | null;
+	artwork_type_id?: number | null;
 	/** IIIF image identifier — null if no image exists for this artwork */
 	image_id: string | null;
 	thumbnail: {
@@ -144,7 +147,10 @@ export function buildSearchQuery(params: SearchParams) {
 			bool: {
 				must,
 				filter,
-				must_not: params.excludeId ? [{ term: { id: params.excludeId } }] : [],
+				must_not: [
+					{ term: { artwork_type_id: ARCHIVAL_GROUPING_TYPE_ID } },
+					...(params.excludeId ? [{ term: { id: params.excludeId } }] : []),
+				],
 			},
 		},
 		page: params.page ?? 1,
@@ -175,8 +181,9 @@ export async function getArtwork(id: number): Promise<Artwork> {
  *
  * The caller should check if the returned artwork has an accessible image —
  * some artworks have no image_id, and some with image_id return 403.
+ * Archival groupings return undefined so the caller's bounded retry can continue.
  */
-export async function getRandomArtwork(): Promise<Artwork> {
+export async function getRandomArtwork(): Promise<Artwork | undefined> {
 	// First request: get the total count of artworks in the collection
 	const countUrl = `${BASE_URL}/artworks?fields=id&limit=1`;
 	const countRes = await fetch(countUrl);
@@ -195,7 +202,10 @@ export async function getRandomArtwork(): Promise<Artwork> {
 	const res = await fetch(url);
 	const json = await res.json();
 
-	return json.data[0];
+	const artwork: Artwork | undefined = json.data[0];
+	return artwork?.artwork_type_id === ARCHIVAL_GROUPING_TYPE_ID
+		? undefined
+		: artwork;
 }
 
 /**

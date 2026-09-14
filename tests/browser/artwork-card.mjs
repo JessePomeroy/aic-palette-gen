@@ -61,14 +61,17 @@ try {
 		portrait: false,
 		imageFails: false,
 		fontFails: false,
+		imageDelay: 0,
 	};
-	await page.route("**/*", (route) => {
+	await page.route("**/*", async (route) => {
 		const url = new URL(route.request().url());
 		if (url.hostname === "api.artic.edu")
 			return route.fulfill({
 				json: { pagination: { total: 1 }, data: [state.artwork] },
 			});
-		if (url.hostname === "www.artic.edu" || url.pathname === "/api/image")
+		if (url.hostname === "www.artic.edu" || url.pathname === "/api/image") {
+			if (state.imageDelay)
+				await new Promise((resolve) => setTimeout(resolve, state.imageDelay));
 			return route.fulfill(
 				state.imageFails
 					? { status: 503, body: "Fixture image unavailable" }
@@ -77,6 +80,7 @@ try {
 							body: Buffer.from(images[Number(state.portrait)], "base64"),
 						},
 			);
+		}
 		if (state.fontFails && url.pathname.endsWith(".ttf"))
 			return route.fulfill({ status: 503, body: "Fixture font unavailable" });
 		if (url.origin !== new URL(base).origin || url.pathname.startsWith("/api/"))
@@ -95,6 +99,42 @@ try {
 			.getByRole("button", { name: "Close", exact: true })
 			.click();
 		await page.waitForFunction(() => !document.querySelector("dialog").open);
+		await page.waitForFunction(
+			() => !document.querySelector(".classic-card-preview"),
+		);
+	};
+	const classicReady = async () => {
+		await page.locator(".classic-card-preview img").waitFor();
+		await page
+			.locator(".classic-card-preview img")
+			.evaluate((image) => image.decode());
+	};
+	const previewGeometry = () =>
+		page.evaluate(() => {
+			const content = document.querySelector(".workbench-sheet-content");
+			return [
+				".artwork-card-preview",
+				".artwork-export-actions",
+				".palette-save-actions",
+			].map((selector) => {
+				const rect = document.querySelector(selector).getBoundingClientRect();
+				return {
+					top:
+						rect.top - content.getBoundingClientRect().top + content.scrollTop,
+					width: rect.width,
+					height: rect.height,
+				};
+			});
+		});
+	const sameGeometry = (before, after) => {
+		for (let i = 0; i < before.length; i++) {
+			for (const key of ["top", "width", "height"]) {
+				assert.ok(
+					Math.abs(before[i][key] - after[i][key]) < 1,
+					`Preview switching preserves row ${i} ${key}`,
+				);
+			}
+		}
 	};
 	async function capture(label, count) {
 		await page
@@ -280,6 +320,7 @@ try {
 			assert.ok(await classic.isChecked());
 		} else await classic.check();
 		assert.equal(await page.locator(".artwork-card").count(), 0);
+		await classicReady();
 		const colors = await page
 			.locator("main .desktop-color, main .mobile-swatch")
 			.evaluateAll((swatches) =>
@@ -310,7 +351,16 @@ try {
 				canvas.height = image.naturalHeight;
 				const ctx = canvas.getContext("2d");
 				ctx.drawImage(image, 0, 0);
+				const exportedPixels = canvas.toDataURL();
+				const preview = document.querySelector(".classic-card-preview img");
+				if (preview?.naturalWidth !== 1200 || preview.naturalHeight !== 1440)
+					throw new Error(
+						"Classic preview must use the original export dimensions",
+					);
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				ctx.drawImage(preview, 0, 0);
 				return {
+					previewMatchesExport: canvas.toDataURL() === exportedPixels,
 					width: canvas.width,
 					height: canvas.height,
 					swatches: Array.from({ length: count }, (_, index) =>
@@ -329,6 +379,10 @@ try {
 		);
 		assert.equal(rendered.width, 1200);
 		assert.equal(rendered.height, 1440);
+		assert.ok(
+			rendered.previewMatchesExport,
+			"Classic preview pixels exactly match the download",
+		);
 		assert.deepEqual(
 			rendered.swatches,
 			colors.map((color) => color.match(/\d+/g).slice(0, 3).map(Number)),
@@ -366,6 +420,7 @@ try {
 		.selectOption("8");
 	await ready();
 	await capture("portrait-eight-long-title", 8);
+	await captureClassic("classic-portrait-eight-long-title");
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.locator(".mobile-random").waitFor();
 	await page
@@ -401,6 +456,58 @@ try {
 	await close();
 	await capture("retry-after-errors", 5);
 	await captureClassic("switch-back-to-classic-mobile");
+	for (const width of [1440, 390, 320]) {
+		await page.setViewportSize({ width, height: 900 });
+		await page
+			.getByRole("navigation", { name: "Workbench tools" })
+			.getByRole("button", { name: /^(Save|Save & share)$/ })
+			.click();
+		// Clear the previous download's transient status before comparing format layouts.
+		await page.getByRole("radio", { name: "Card", exact: true }).check();
+		await page.getByRole("radio", { name: "Classic", exact: true }).check();
+		await classicReady();
+		const geometry = await previewGeometry();
+		await page.getByRole("radio", { name: "Card", exact: true }).check();
+		sameGeometry(geometry, await previewGeometry());
+		state.imageDelay = 250;
+		await page.getByRole("radio", { name: "Classic", exact: true }).check();
+		await page.getByText("Loading preview…", { exact: true }).waitFor();
+		sameGeometry(geometry, await previewGeometry());
+		await classicReady();
+		sameGeometry(geometry, await previewGeometry());
+		state.imageDelay = 0;
+		results.push(`stable-preview-layout-${width}`);
+		await close();
+	}
+	await page
+		.getByRole("navigation", { name: "Workbench tools" })
+		.getByRole("button", { name: "Save", exact: true })
+		.click();
+	await page.getByRole("radio", { name: "Card", exact: true }).check();
+	const geometry = await previewGeometry();
+	state.imageFails = true;
+	await page.getByRole("radio", { name: "Classic", exact: true }).check();
+	await page
+		.getByText("Could not load the Classic preview.", { exact: true })
+		.waitFor();
+	sameGeometry(geometry, await previewGeometry());
+	state.imageFails = false;
+	await page
+		.getByRole("button", { name: "Retry preview", exact: true })
+		.click();
+	await classicReady();
+	sameGeometry(geometry, await previewGeometry());
+	results.push("classic-preview-error-retry");
+	await page.getByRole("radio", { name: "Card", exact: true }).check();
+	state.imageDelay = 250;
+	await page.getByRole("radio", { name: "Classic", exact: true }).check();
+	await page.getByText("Loading preview…", { exact: true }).waitFor();
+	await page.getByRole("radio", { name: "Card", exact: true }).check();
+	await page.locator(".artwork-card-image").evaluate((image) => image.decode());
+	assert.equal(await page.locator(".classic-card-preview").count(), 0);
+	sameGeometry(geometry, await previewGeometry());
+	state.imageDelay = 0;
+	results.push("switch-away-during-classic-preview-load");
 	assert.deepEqual(errors, []);
 	console.log(
 		JSON.stringify(

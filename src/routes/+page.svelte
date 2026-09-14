@@ -36,6 +36,7 @@
     import { HISTORY_KEY, parseHistory, rememberPalette, type RecentPalette } from '$lib/history';
     import PaletteEditor from '$lib/components/PaletteEditor.svelte';
     import ArtworkCard from '$lib/components/ArtworkCard.svelte';
+    import ClassicArtworkCard from '$lib/components/ClassicArtworkCard.svelte';
     import ContrastChecker from '$lib/components/ContrastChecker.svelte';
     import ModeComparison, { type PaletteVariant } from '$lib/components/ModeComparison.svelte';
 
@@ -754,9 +755,13 @@
         </label>
     </div>
 </fieldset>
-{#if cardFormat === 'card' && artwork && colors.length}
+{#if artwork && colors.length}
     <div class="artwork-card-preview">
-        <ArtworkCard {artwork} {colors} />
+        {#if cardFormat === 'card'}
+            <ArtworkCard {artwork} {colors} />
+        {:else if panelOpen}
+            <ClassicArtworkCard {artwork} {colors} />
+        {/if}
     </div>
 {/if}
 <div class="artwork-export-actions">
