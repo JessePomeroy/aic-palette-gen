@@ -2,7 +2,7 @@
 
 ChromaCollection turns artwork into usable color palettes. It combines museum discovery, browser-based palette extraction, color-constrained artwork matching, and export/share tools in an artwork-first workbench.
 
-These docs describe the **local repository implementation**, reviewed on **2026-09-13 UTC**. They are not a claim that every feature or the expanded dataset has been deployed to the public website. The full scan remains a separate local job until its completion report exists and a release is explicitly approved.
+Updated **2026-09-14 UTC**: the completed scan's **59,025-artwork R2 release is live** at [ChromaCollection](https://www.chromacollection.online). Data publication and app deployment remain separate operator steps; [release evidence](release-checklist.md) records the completed rollout, browser checks, and user phone feedback.
 
 ## Start here
 
@@ -32,8 +32,8 @@ There are four distinct stores:
 
 | Store | Purpose | Location |
 |---|---|---|
-| Artwork catalog | Titles, artists, dates, media, rights flags, and museum/image identifiers | Local staging JSON; matching release metadata in static assets |
-| Color index and verification samples | Searchable image-color evidence | Local staging files; versioned static assets for the current app |
+| Artwork catalog | Titles, artists, dates, media, rights flags, and museum/image identifiers | Local staging JSON; paginated release metadata in R2 |
+| Color index and verification samples | Searchable image-color evidence | Local audited files; versioned R2 tiles and sample packs |
 | Recent palette history | Restore this browser's palettes, locks, and tone descriptions | Browser local storage, with an in-memory fallback |
 | Saved palette links | Open a palette by a shareable UUID | Neon Postgres, queried by the application server |
 
@@ -43,19 +43,19 @@ There are four distinct stores:
 
 | Milestone | Observed result |
 |---|---|
-| Current local app index | 2,500 indexed public-domain artworks in `expanded-2500-20260913` |
+| Full-scan app index | 59,025 indexed public-domain artworks in `v3/full-59025-20260914` |
 | Historical bulk snapshot | 134,078 artwork records; 57,556 eligible artworks with image IDs |
 | Historical archive date | 2025-02-16; downloaded and checked on 2026-09-13 |
 | Live catalog refresh | 59,056 eligible records, saved across 591 pages |
 | Reconciliation | 1,707 additions, 207 removals, 511 changed image IDs, 5,496 changed normalized metadata records |
 | Larger scan pilot | 293 indexed and 7 HTTP-403 skips out of 300; integrity audit passed |
-| Full scan | Launched and resumable; consult its files rather than treating this table as progress tracking |
+| Full scan | Completed and audited: 59,025 indexed, 31 skipped; originals retained |
 
 The live catalog's observation window was 02:59:02–03:08:55 UTC on 2026-09-13. It is a frozen local view collected over time, not an atomic snapshot of the museum's database. Metadata eligibility does not guarantee an image download will succeed.
 
 ## Existing specialist guides
 
-- [Locked-color index](color-index.md): exact matching policy, runtime format, numerical experiments, and the 2,500-artwork release.
+- [Locked-color index](color-index.md): exact matching policy, on-demand v3 runtime, and historical experiments.
 - [Historical catalog import](full-artwork-catalog.md): bulk archive validation and normalization.
 - [Local color batches](local-color-batches.md): one bounded batch, restart behavior, and saved artifacts.
 - [Full scan](full-color-scan.md): live refresh, pilot gate, full processing, and final audit.

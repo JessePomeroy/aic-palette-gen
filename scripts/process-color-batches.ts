@@ -22,6 +22,7 @@ import {
 import { analyzeColorfulness } from "../src/lib/colors/colorfulness.ts";
 import { readArtworkCatalog } from "../src/lib/colors/index-catalog.ts";
 import { readManifest } from "./build-color-index.ts";
+import { requestColorImage } from "./lib/color-download.ts";
 import { ImageAnalysisError, prepareColorImage } from "./lib/color-image.ts";
 
 const RECIPE = "canonical-v2-colorfulness-v1-gzip-v1";
@@ -258,17 +259,16 @@ export async function processColorBatch(options: BatchOptions) {
 							"Missing local image; provide a cache or explicitly enable downloads for uncached catalog entries";
 						break;
 					}
-					await delay(
-						Math.max(0, 1000 - (Date.now() - lastRequest)),
-						undefined,
-						{ signal: options.signal },
-					);
-					lastRequest = Date.now();
 					let downloaded: Buffer | undefined;
 					try {
-						const response = await fetch(
-							`https://www.artic.edu/iiif/2/${artwork.image_id}/full/843,/0/default.jpg`,
-							{
+						const response = await requestColorImage(artwork, async (url) => {
+							await delay(
+								Math.max(0, 1000 - (Date.now() - lastRequest)),
+								undefined,
+								{ signal: options.signal },
+							);
+							lastRequest = Date.now();
+							return fetch(url, {
 								redirect: "error",
 								signal: AbortSignal.any([
 									AbortSignal.timeout(10000),
@@ -279,8 +279,8 @@ export async function processColorBatch(options: BatchOptions) {
 									"User-Agent": "Mozilla/5.0 (compatible; ChromaCollection)",
 									Referer: "https://www.artic.edu/",
 								},
-							},
-						);
+							});
+						});
 						if (response.status === 403 || response.status === 404) {
 							reason = `http-${response.status}`;
 							await response.body?.cancel();

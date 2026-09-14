@@ -4,19 +4,21 @@
 
 ## System boundaries
 
-ChromaCollection is a Svelte 5/SvelteKit application with a browser workbench, a small set of server routes, and separate Node/TypeScript data-processing commands. Tailwind 4 and project CSS provide presentation. Vercel is the configured adapter; that configuration alone is not evidence that the current local candidate is deployed.
+ChromaCollection is a Svelte 5/SvelteKit application with a browser workbench, a small set of server routes, and separate Node/TypeScript data-processing commands. Tailwind 4 and project CSS provide presentation. The full-index app is deployed on Vercel at [ChromaCollection](https://www.chromacollection.online); its versioned color data is hosted separately in R2. See [dated release evidence](release-checklist.md).
 
 ```mermaid
 flowchart LR
   Browser[Browser workbench] --> Museum[Live museum metadata and IIIF images]
-  Browser --> Assets[Versioned color index and canonical samples]
+  Browser --> Gateway[Read-only Cloudflare Worker]
+  Gateway --> Assets[Dedicated R2: color tiles, metadata, sample packs]
   Browser --> History[This browser's recent-palette storage]
   Browser --> Server[SvelteKit server routes]
   Server --> Neon[Neon: shared palettes only]
   Server --> Gemini[Gemini: explicit Tone requests]
   Server --> Museum
   Offline[Offline catalog and scan commands] --> Staging[Local staging files and audit reports]
-  Staging -. Separate approved release .-> Assets
+  Staging --> Publish[Separately approved packaging and manifest-last publication]
+  Publish --> Assets
 ```
 
 The offline process is not part of an incoming browser request. A visitor does not start a full-collection scan by opening the site, clicking Random, or saving a palette.
@@ -36,6 +38,8 @@ The offline process is not part of an incoming browser request. A visitor does n
 | Sharing persistence | [`src/lib/db/index.ts`](../src/lib/db/index.ts) | Lazy Neon connection and parameterized saved-palette queries |
 | Request boundaries | [`src/lib/server/`](../src/lib/server/) | Bounded input, provider-output validation, per-instance write limits |
 | Offline build tools | [`scripts/`](../scripts/) | Catalog import/refresh, source downloads, sample generation, scan supervision/audits |
+| Sharded data contracts | [`color-shards.ts`](../src/lib/colors/color-shards.ts) | Typed manifest, directory, tile and metadata validation |
+| Release packaging/delivery | [`shard-builder.ts`](../scripts/lib/shard-builder.ts), [`workers/color-index/`](../workers/color-index/) | Lossless packaging and read-only, range-bounded R2 delivery |
 
 ## Workbench state and asynchronous ownership
 
@@ -53,7 +57,7 @@ Selecting new artwork resets transient palette/comparison/share state and return
 
 ### 1. Browser palette generation
 
-The selected 843px museum image is loaded directly first, with a same-origin image-proxy fallback. Each attempt has a 15-second request timeout. The browser decodes the image, draws it onto a Canvas no larger than 100px on either dimension, and collects pixels with alpha at least 128.
+The selected museum image is loaded directly first, with a same-origin image-proxy fallback. Ordinary large images request 843px; narrower originals use bounded derivatives instead of enlargement. Each attempt has a 15-second request timeout. The browser decodes the image, draws it onto a Canvas no larger than 100px on either dimension, and collects pixels with alpha at least 128.
 
 For palette generation only, pixels with average RGB brightness below 15 or above 245 are omitted. K-means uses the requested number of clusters, random initial pixel positions, Euclidean RGB distance, and ten iterations. Empty clusters retain their previous centroid. Centroids become hex/RGB/HSL color objects.
 
@@ -78,7 +82,9 @@ Histogram bins are approximate. Candidate retrieval accounts for bin-rounding di
 
 Every relevant condition must be met by the **same qualifying pixels** for a given lock. Every lock must pass in one artwork. The smaller five-to-eight-swatch browser palette is not used as proof that a lock occurs in the image.
 
-The current release path is `/color-index/expanded-2500-20260913`, selected by `COLOR_INDEX_ASSET_ROOT`. Index and metadata load together and must agree on artwork/image identity. Candidate samples load lazily. Only verified samples enter the 32-entry recency cache. There is a 2,500-candidate cap and an overall UI deadline; loading a 59,056-entry file without redesigning these budgets is not a supported release step.
+`/color-index/release.json` selects the immutable version-3 R2 root and manifest hash for 59,025 audited artworks. The browser loads the directory, relevant color tiles, metadata pages, and exact gzip sample ranges on demand. Identity, dimensions, ranges, decompression bounds, and hashes are validated. Caches retain 16 MiB of decoded assets, eight metadata pages, and 32 verified samples. A query is limited to 12 MiB downloaded bodies, 2,500 checks, and the 30-second UI deadline.
+
+Candidate loads overlap in windows of four to reduce network round trips. Results are considered in their random draw order, not completion order, preserving unbiased selection within the unseen/seen tiers. At most three extra samples can be prefetched when an earlier candidate matches; no new window starts after a match. These downloads share the same byte budget.
 
 The current artwork is excluded. Candidate order is randomized, unseen IDs are preferred, and already-seen valid results may be used as a fallback. Exhausted verified rejections produce no-match; missing/corrupt samples and budget exhaustion produce incomplete data. Neither outcome is converted into a hidden live museum-image scan.
 
@@ -90,7 +96,7 @@ The prompt requests a mood description and named colors capturing the artwork's 
 
 ## Staging, release assets, and Neon
 
-Full-scan receipts and gzip samples are a resumable **staging format**. The current runtime expects a version-2 aggregate index, matching catalog JSON, and raw `.rgba` sample assets. No automatic step promotes the full scan into the current app.
+Full-scan receipts and gzip samples are a resumable **staging format**. The separately invoked v3 packager preserves canonical samples in packs and emits directory, tile, and metadata assets. The uploader publishes the manifest only after data uploads are verified. The app's root/hash pointer selects one immutable release; scanning itself never changes production. Older aggregate v2 assets remain for matching older app deployments.
 
 Neon persists share links only. `getSql()` reads the private connection setting when a save/load query is needed; importing the module or building the app does not initialize a database connection. Inserts and lookups use the driver's parameterized SQL tagged template. Database exceptions are redacted at the relevant routes.
 
@@ -102,7 +108,7 @@ The real table uses integer artwork IDs and counts, JSONB colors, text mode/ID, 
 |---|---|---|
 | Search/discovery | Search terms and selected filters | Museum metadata API |
 | Display/extract artwork | Public image identifier and image bytes | Museum IIIF service; optionally same-origin proxy |
-| Match locked colors | Index/sample requests; matching is performed locally | App's static asset host, not an AI service |
+| Match locked colors | Relevant color-tile, metadata and sample-range requests; matching is local | Read-only Cloudflare Worker and dedicated R2 bucket, not an AI service |
 | Tone generation | Small selected artwork JPEG and requested count | App server, then configured Gemini endpoint |
 | Share palette | Artwork ID, color objects, mode, count | App server, then Neon |
 | Open shared link | UUID lookup and artwork metadata request | App server to Neon and museum |

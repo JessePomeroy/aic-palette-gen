@@ -6,7 +6,7 @@ For the full project context and visual graph, see [how the artwork database is 
 
 ## Refresh and freeze the live catalog
 
-```bash
+```fish
 npm run colors:refresh -- \
   --output /absolute/path/new-live-catalog \
   --baseline /absolute/path/historical-catalog/artworks.json \
@@ -21,7 +21,7 @@ Completed output includes `artworks.json`, update timestamps in `provenance.json
 
 ## Pilot through full scan
 
-```bash
+```fish
 npm run colors:scan -- \
   --catalog /absolute/path/new-live-catalog/artworks.json \
   --reuse-manifest /absolute/path/new-live-catalog/reuse-manifest.json \
@@ -34,6 +34,10 @@ The first 300 catalog records form a throughput/integrity pilot, not a statistic
 
 Image requests remain sequential and paced within and between batches. Transient pauses retry at most six times without forward progress, backing off from one minute to fifteen minutes; rate limits wait at least fifteen minutes. `Retry-After` can extend that wait. A requested cooldown longer than a day pauses for manual resumption. Less than 5 GiB of free disk also pauses the scan. Explicit per-image skips remain in the audit trail and are not automatically retried.
 
+The batch downloader retains 843px-wide requests for ordinary images. For originals narrower than 843px, it uses the catalog dimensions to request a smaller derivative that fits within an 843px box. A bounded inspection of an HTTP 403 body can recognize the museum's explicit enlargement restriction; only that error receives one fallback request at 50% of native size. Missing or stale catalog dimensions therefore do not automatically become permanent skips. Both requests share the same pacing, timeout, byte limit, and response validation. Other access denials are not retried by this sizing fallback. Embedded ICC profiles still require color normalization and are never silently stripped locally.
+
+An explicitly approved retry of durable skips must retain their old receipts and checkpoint in an archive before changing the job. Rewind to the first archived record and replay using the unchanged catalog and analysis recipe; existing successful receipts are verified and reused, not redownloaded. Counts temporarily reflect the replay cursor, not the amount of preserved data. Preserve all safety stops and original image files. Do not merely restart at the old cursor, which would leave previously skipped artworks behind.
+
 ## Status and completion
 
 - `checkpoint.json`: image cursor and indexed/skipped counts, saved after each verified record.
@@ -41,7 +45,15 @@ Image requests remain sequential and paced within and between batches. Transient
 - `pilot-report.json`: pilot acceptance, tag/skip counts, storage measurements, and original hash verification.
 - `scan-report.json`: written only after the entire frozen catalog is accounted for and both canonical samples and originals pass a final audit. Reports successful analysis separately from explicit skips.
 
-Completion is for the frozen catalog, not for artworks that become eligible after the refresh. Original images, metadata, compressed canonical pixels, and signatures are retained locally. A separate release/export step would be needed to change the app's current 2,500-artwork index.
+Completion is for the frozen catalog, not for artworks that become eligible after the refresh. Original images, metadata, compressed canonical pixels, and signatures are retained locally. The separately approved [v3 packaging and publication](operations.md#release-and-rollback) now supplies the live app's 59,025-artwork index; the scan command itself never publishes it.
+
+## Completed audit and release — 2026-09-14 UTC
+
+The final audit completed at **12:50:54 UTC**: all **59,056** frozen records were accounted for, with **59,025 indexed** and **31 skipped**. Every indexed original hash and canonical sample verified. The report's `samplesVerified: 59056` counts audited records including skips, not 59,056 distinct pixel samples.
+
+Skips: 19 requiring color-profile normalization, eight HTTP 404 responses, two invalid image responses, and two decode/analysis failures. Tags: 55,748 colorful, 2,114 near-neutral, and 1,163 grayscale artworks. The completed supervisor stopped normally; an inactive successful service is not a stalled scan.
+
+The approved release preserves 58,881 unique canonical samples in R2 packs and all original images locally. The production app is live at [ChromaCollection](https://www.chromacollection.online); see [release evidence](release-checklist.md) for checks and rollout history. No additional retry or cleanup is implied by completion.
 
 Status reflects the last completed batch and can lag the per-image checkpoint while the next batch is working. The pilot's `elapsedSeconds` measures the current runner invocation; after a restart it is not total pilot wall time. Original-byte storage figures cover indexed records, not any source files retained for skipped images.
 
