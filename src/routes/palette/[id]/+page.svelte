@@ -98,7 +98,7 @@
 			<div class="mb-6 sm:mb-8">
 				{#if artwork.image_id && !imageUnavailable}
 					<img
-						src={getImageUrl(artwork.image_id, 'large')}
+						src={getImageUrl(artwork.image_id, 'large', artwork.thumbnail?.width)}
 						onerror={fallbackImage}
 						alt={artwork.thumbnail?.alt_text || artwork.title}
 						class="artwork-image w-full rounded-lg sm:w-auto sm:max-h-[65vh]"

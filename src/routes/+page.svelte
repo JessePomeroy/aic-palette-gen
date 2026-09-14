@@ -29,10 +29,13 @@
         downloadFile,
     } from "$lib/export/palette";
     import { exportArtworkCard } from '$lib/export/artwork-card';
-    import { applyLocks, readableText } from '$lib/colors/workbench';
+    import { exportCard } from '$lib/export/card';
+    import { pullToDismiss } from '$lib/interactions/pull-to-dismiss';
+    import { applyLocks, readableText, suggestTextColor } from '$lib/colors/workbench';
     import { createIndexedSearch } from '$lib/colors/indexed-search';
     import { HISTORY_KEY, parseHistory, rememberPalette, type RecentPalette } from '$lib/history';
     import PaletteEditor from '$lib/components/PaletteEditor.svelte';
+    import ArtworkCard from '$lib/components/ArtworkCard.svelte';
     import ContrastChecker from '$lib/components/ContrastChecker.svelte';
     import ModeComparison, { type PaletteVariant } from '$lib/components/ModeComparison.svelte';
 
@@ -134,6 +137,7 @@
     let historyStatus = $state('');
     let cardBusy = $state(false);
     let cardStatus = $state('');
+    let cardFormat = $state<'classic' | 'card'>('classic');
     let artistFilter = $state('');
     let mediumFilter = $state('');
     let periodFilter = $state('');
@@ -161,6 +165,8 @@
         const sorted = [...colors].sort((a, b) => b.hsl.s - a.hsl.s);
         return sorted[0].hex;
     });
+    // Focus and hover accents must stay visible against the lightest dark UI surface.
+    let accentFocus = $derived(suggestTextColor(accentColor, '#222222'));
 
     // ── lifecycle ──
 
@@ -257,8 +263,8 @@
         await regeneratePalette();
     }
 
-    async function generateTone(imageId: string, count: number, stillCurrent: () => boolean): Promise<PaletteVariant> {
-        const image = await fetchImageBlob(getImageUrl(imageId, 'medium'));
+    async function generateTone(imageId: string, count: number, stillCurrent: () => boolean, nativeWidth?: number): Promise<PaletteVariant> {
+        const image = await fetchImageBlob(getImageUrl(imageId, 'medium', nativeWidth));
         if (!stillCurrent()) throw new Error('Selection changed.');
         const res = await fetch(`/api/ai-palette?count=${count}`, {
             method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: image
@@ -274,16 +280,17 @@
         const request = ++comparisonRequest;
         const imageId = artwork.image_id;
         const count = colorCount;
+        const nativeWidth = artwork.thumbnail?.width;
         comparisonBusy = true;
         comparisonError = '';
         try {
             if (tone) {
-                const variant = await generateTone(imageId, count, () => request === comparisonRequest);
+                const variant = await generateTone(imageId, count, () => request === comparisonRequest, nativeWidth);
                 if (request === comparisonRequest) variants = { ...variants, ai: variant };
             } else {
                 for (const mode of ['dominant', 'vibrant'] as const) {
                     if (variants[mode]) continue;
-                    const result = await extractColors(getImageUrl(imageId, 'large'), mode, count);
+                    const result = await extractColors(getImageUrl(imageId, 'large', nativeWidth), mode, count);
                     if (request !== comparisonRequest) return;
                     if (!result.length) throw new Error('Could not compare these palettes. Please try again.');
                     variants = { ...variants, [mode]: { colors: result, description: '' } };
@@ -300,13 +307,14 @@
         if (!artwork || !colors.length || cardBusy) return;
         const selected = artwork;
         const palette = [...colors];
+        const format = cardFormat;
         cardBusy = true;
         cardStatus = '';
         try {
-            const blob = await exportArtworkCard(selected, palette);
-            downloadFile(blob, `chroma-${selected.id}-artwork-card.png`);
-            cardStatus = 'Artwork card downloaded.';
-        } catch { cardStatus = 'Could not load the artwork for export. Please try again.'; }
+            const blob = await (format === 'card' ? exportCard : exportArtworkCard)(selected, palette);
+            downloadFile(blob, `chroma-${selected.id}-${format === 'card' ? 'card' : 'artwork-card'}.png`);
+            cardStatus = format === 'card' ? 'Card downloaded.' : 'Artwork card downloaded.';
+        } catch { cardStatus = 'Could not create the artwork card. Please try again.'; }
         finally { cardBusy = false; }
     }
 
@@ -462,7 +470,7 @@
             aiDescription = "";
             paletteLoading = true;
             const extracted = await extractColors(
-                getImageUrl(artwork.image_id, "large"),
+                getImageUrl(artwork.image_id, "large", artwork.thumbnail?.width),
                 extractionMode,
                 colorCount,
             );
@@ -478,7 +486,7 @@
         if (!artwork?.image_id) return;
         aiLoading = true;
         try {
-            const data = await generateTone(artwork.image_id, colorCount, () => request === paletteRequest);
+            const data = await generateTone(artwork.image_id, colorCount, () => request === paletteRequest, artwork.thumbnail?.width);
             if (request !== paletteRequest) return;
             acceptPalette('ai', data);
         } catch (e) {
@@ -590,7 +598,7 @@
                     type="submit"
                     disabled={searchBusy}
                     class="shrink-0 rounded-md px-3 py-2 text-sm cursor-pointer hover:underline"
-                    style="background-color: {accentColor}; color: {readableText(accentColor)};"
+                    style="background-color: var(--accent); color: var(--accent-foreground);"
                 >
                     search
                 </button>
@@ -627,7 +635,7 @@
                         >
                             {#if result.image_id}
                                 <img
-                                    src={getImageUrl(result.image_id, "thumb")}
+                                    src={getImageUrl(result.image_id, "thumb", result.thumbnail?.width)}
                                     onerror={fallbackImage}
                                     alt=""
                                     class="h-10 w-10 object-cover rounded-sm"
@@ -733,21 +741,49 @@
 {/snippet}
 
 {#snippet exportPanel()}
-<div class="flex flex-wrap items-center gap-3 my-5">
-                        <button class="tool-button" disabled={busy || cardBusy || Boolean(paletteError)} onclick={downloadCard}>{cardBusy ? "Creating card…" : "Download artwork + palette card"}</button>
+<fieldset class="card-format" disabled={cardBusy}>
+    <legend class="text-xs mb-2">Artwork + palette image</legend>
+    <div class="card-format-options">
+        <label class="card-format-option">
+            <input type="radio" name="card-format" value="classic" bind:group={cardFormat} onchange={() => cardStatus = ''} />
+            <span>Classic</span>
+        </label>
+        <label class="card-format-option">
+            <input type="radio" name="card-format" value="card" bind:group={cardFormat} onchange={() => cardStatus = ''} />
+            <span>Card</span>
+        </label>
+    </div>
+</fieldset>
+{#if cardFormat === 'card' && artwork && colors.length}
+    <div class="artwork-card-preview">
+        <ArtworkCard {artwork} {colors} />
+    </div>
+{/if}
+<div class="artwork-export-actions">
+                        <button class="tool-button" disabled={busy || cardBusy || !artwork || !colors.length || Boolean(paletteError)} onclick={downloadCard}>{cardBusy ? "Creating card…" : cardFormat === 'card' ? 'Download card' : 'Download artwork + palette card'}</button>
                         <span role="status" class="text-xs">{cardStatus}</span>
                     </div>
 
                     <!-- The same save controls are available in both sheet layouts. -->
-                    <div class="flex flex-wrap items-center gap-2" class:invisible={busy || Boolean(paletteError)}>
+                    <div class="palette-save-actions" class:invisible={busy || Boolean(paletteError)}>
                         <button
                             onclick={handleShare}
                             disabled={sharing || busy || !colors.length}
                             class="rounded-md px-3 py-1.5 text-sm cursor-pointer"
-                            style="background-color: {accentColor}; color: {readableText(accentColor)};"
+                            style="background-color: var(--accent); color: var(--accent-foreground);"
                         >
                             share
                         </button>
+                        {#each exportFormats as fmt}
+                            <button
+                                onclick={() => handleExport(fmt)}
+                                disabled={busy || !colors.length}
+                                class="palette-export rounded-md border px-2.5 py-1.5 text-xs uppercase cursor-pointer"
+                                style="color: var(--text-secondary);"
+                            >
+                                {fmt === "ase" ? ".ase" : fmt}
+                            </button>
+                        {/each}
                         {#if shareStatus}
                             <span
                                 role="status"
@@ -757,17 +793,6 @@
                             >
                         {/if}
                         {#if shareUrl}<a class="text-xs underline" href={shareUrl}>Open saved palette</a>{/if}
-                        <span style="color: var(--border);">·</span>
-                        {#each exportFormats as fmt}
-                            <button
-                                onclick={() => handleExport(fmt)}
-                                disabled={busy || !colors.length}
-                                class="rounded-md border px-2.5 py-1.5 text-xs uppercase cursor-pointer"
-                                style="border-color: var(--border); color: var(--text-secondary);"
-                            >
-                                {fmt === "ase" ? ".ase" : fmt}
-                            </button>
-                        {/each}
                     </div>
 {/snippet}
 
@@ -783,7 +808,7 @@
                 <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 mt-4">
                     {#each recent as entry (entry.id)}
                         <button class="history-item text-left min-w-0" onclick={() => restoreRecent(entry)} title={`Restore ${entry.artwork.title} (${entry.mode === 'ai' ? 'tone' : entry.mode})`}>
-                            {#if entry.artwork.image_id}<img loading="lazy" src={getImageUrl(entry.artwork.image_id, 'small')} onerror={fallbackImage} alt="" class="h-20 w-full object-cover rounded-t-md" />{/if}
+                            {#if entry.artwork.image_id}<img loading="lazy" src={getImageUrl(entry.artwork.image_id, 'small', entry.artwork.thumbnail?.width)} onerror={fallbackImage} alt="" class="h-20 w-full object-cover rounded-t-md" />{/if}
                             <span class="flex h-5">{#each entry.colors as color}<span class="flex-1" style={`background:${color.hex}`}></span>{/each}</span>
                             <span class="block p-2 text-xs truncate">{entry.artwork.title}</span>
                             <span class="block px-2 pb-2 text-[10px] opacity-70">{entry.mode === 'ai' ? 'tone' : entry.mode} · {entry.colors.length} colors</span>
@@ -817,7 +842,7 @@
             {#if loading}
                 <p role="status">Finding artwork…</p>
             {:else if artwork?.image_id}
-                <img src={getImageUrl(artwork.image_id, 'large')} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} class="artwork-image" />
+                <img src={getImageUrl(artwork.image_id, 'large', artwork.thumbnail?.width)} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} class="artwork-image" />
             {:else}
                 <p>No artwork available. Try Random.</p>
             {/if}
@@ -870,6 +895,7 @@
     </main>
 {/snippet}
 
+<div class="workbench-theme" style:--accent={accentColor} style:--accent-foreground={readableText(accentColor)} style:--accent-focus={accentFocus}>
 {#if mobile}
     <main class="mobile-workbench">
         <header class="mobile-header">
@@ -881,7 +907,7 @@
             {#if loading}
                 <p role="status">Finding artwork…</p>
             {:else if artwork?.image_id}
-                <img src={getImageUrl(artwork.image_id, 'large')} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} />
+                <img src={getImageUrl(artwork.image_id, 'large', artwork.thumbnail?.width)} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} />
             {:else}
                 <p>No artwork available. Try Random.</p>
             {/if}
@@ -942,7 +968,8 @@
     {@render desktopWorkbench()}
 {/if}
 
-    <dialog bind:this={toolDialog} use:sheetBackdrop id="workbench-tools" class="workbench-sheet" class:wide-panel={activePanel === 'palette' || activePanel === 'history'} aria-labelledby="workbench-panel-title" onclose={() => { panelOpen = false; }} oncancel={(event) => { event.preventDefault(); void closePanel(); }}>
+    <dialog bind:this={toolDialog} use:sheetBackdrop use:pullToDismiss={() => { void closePanel(); }} id="workbench-tools" class="workbench-sheet" class:wide-panel={activePanel === 'palette' || activePanel === 'history'} aria-labelledby="workbench-panel-title" onclose={() => { panelOpen = false; }} oncancel={(event) => { event.preventDefault(); void closePanel(); }}>
+        <div class="workbench-sheet-grip" aria-hidden="true"></div>
         <div class="workbench-sheet-header">
             <h2 id="workbench-panel-title">{panelTitles[activePanel]}</h2>
             <button onclick={closePanel}>Close</button>
@@ -972,3 +999,4 @@
             {/if}
         </div>
     </dialog>
+</div>

@@ -1,0 +1,229 @@
+@font-face {
+  font-family: 'Chroma Allura';
+  src: url('../assets/fonts/allura-400.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Chroma Dancing Script';
+  src: url('../assets/fonts/dancing-script-500.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+/* One stylesheet drives the responsive preview and the self-contained PNG. */
+.artwork-card-viewport {
+  container-type: inline-size;
+  width: 100%;
+  color-scheme: light;
+  direction: ltr;
+}
+
+.artwork-card,
+.artwork-card *,
+.artwork-card *::before,
+.artwork-card *::after {
+  box-sizing: border-box;
+  margin: 0;
+  transition: none;
+}
+
+.artwork-card {
+  --card-ink: #24303a;
+  --card-paper: #f8f1df;
+  --card-edge: color-mix(in srgb, var(--card-trim) 75%, #c7b176);
+  --card-cover: color-mix(in srgb, var(--card-frame) 75%, #aab5bb);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 1.5cqi;
+  width: 100%;
+  aspect-ratio: 5 / 7;
+  padding: 3cqi;
+  overflow: hidden;
+  border: .24cqi solid var(--card-ink);
+  border-radius: 3.4cqi;
+  background-color: var(--card-cover);
+  background-image: repeating-linear-gradient(120deg, #fff1 0 .08cqi, transparent .08cqi .7cqi);
+  box-shadow: inset 0 0 0 .38cqi #ffffff50;
+  color: var(--card-ink);
+  font-family: 'Chroma Dancing Script', cursive;
+  font-size: 3.3cqi;
+  font-weight: 500;
+  line-height: 1.15;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Only the title retains the inset, round-cut corners from the concept. */
+.artwork-card-title-frame,
+.artwork-card-title-paper {
+  --card-notch: 2.8cqi;
+  mask-image:
+    radial-gradient(circle at 0 0, transparent var(--card-notch), #000 calc(var(--card-notch) + .05cqi)),
+    radial-gradient(circle at 100% 0, transparent var(--card-notch), #000 calc(var(--card-notch) + .05cqi)),
+    radial-gradient(circle at 0 100%, transparent var(--card-notch), #000 calc(var(--card-notch) + .05cqi)),
+    radial-gradient(circle at 100% 100%, transparent var(--card-notch), #000 calc(var(--card-notch) + .05cqi));
+  mask-composite: intersect;
+}
+
+.artwork-card-title-frame {
+  padding: .75cqi;
+  background: var(--card-edge);
+  box-shadow: inset 0 0 0 .2cqi var(--card-ink);
+}
+
+.artwork-card-title-paper {
+  --card-notch: 2.3cqi;
+  padding: 2.1cqi 3cqi 2.3cqi;
+  background: var(--card-paper);
+  box-shadow: inset 0 0 0 .2cqi var(--card-ink);
+}
+
+.artwork-card-title-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2cqi;
+}
+
+.artwork-card-title {
+  min-width: 0;
+  font-family: 'Chroma Allura', cursive;
+  font-size: var(--card-title-size, 9cqi);
+  font-weight: 400;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.artwork-card-date {
+  flex: 0 1 auto;
+  min-width: 12cqi;
+  max-width: 25cqi;
+  padding: 1.1cqi 1.8cqi;
+  border: .2cqi solid var(--card-ink);
+  border-radius: 3cqi;
+  background: color-mix(in srgb, var(--card-edge) 38%, var(--card-paper));
+  font-size: 3.6cqi;
+  line-height: 1.1;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.artwork-card-credits {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 3cqi;
+  margin-top: 1.4cqi;
+  padding-top: 1.3cqi;
+  border-top: .14cqi solid var(--card-ink);
+  font-size: 3.1cqi;
+  overflow-wrap: anywhere;
+}
+
+.artwork-card-credits p { min-width: 0; }
+.artwork-card-credits p:last-child:not(:first-child) { max-width: 48%; text-align: right; }
+
+.artwork-card-image-frame {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: .7cqi;
+  border: .2cqi solid var(--card-ink);
+  border-radius: 1.4cqi;
+  background: var(--card-edge);
+}
+
+.artwork-card-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: .18cqi solid var(--card-ink);
+  border-radius: .55cqi;
+  object-fit: contain;
+  background: var(--card-paper);
+}
+
+.artwork-card-palette-panel {
+  min-width: 0;
+  padding: 1cqi 2.1cqi 1.6cqi;
+  border: .2cqi solid var(--card-ink);
+  border-radius: 1.4cqi;
+  background: var(--card-paper);
+  box-shadow: inset 0 0 0 .55cqi var(--card-edge), inset 0 0 0 .72cqi var(--card-ink);
+}
+
+.artwork-card-palette-title {
+  display: flex;
+  align-items: center;
+  gap: 2cqi;
+  margin: 0 0 1.2cqi;
+  font-family: 'Chroma Allura', cursive;
+  font-size: 6.4cqi;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.artwork-card-palette-title::before,
+.artwork-card-palette-title::after {
+  content: '';
+  flex: 1;
+  height: .16cqi;
+  background: var(--card-ink);
+}
+
+.artwork-card-swatches {
+  display: grid;
+  grid-template-columns: repeat(var(--card-color-count), minmax(0, 1fr));
+  gap: 1.3cqi;
+  padding: 0;
+  list-style: none;
+}
+
+.artwork-card-swatch {
+  min-width: 0;
+  overflow: hidden;
+  border: .15cqi solid var(--card-ink);
+  border-radius: 1cqi;
+}
+
+.artwork-card-color { display: block; height: 12.5cqi; }
+.artwork-card-hex {
+  display: block;
+  padding: 1cqi .25cqi;
+  border-top: .15cqi solid var(--card-ink);
+  font-family: 'Courier New', monospace;
+  font-size: 2.65cqi;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.artwork-card-many-colors { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.artwork-card-many-colors .artwork-card-color { height: 6cqi; }
+.artwork-card-many-colors .artwork-card-hex { padding-block: .6cqi; }
+
+.artwork-card-footer {
+  margin-top: 1.8cqi;
+  padding-top: 1.2cqi;
+  border-top: .16cqi solid var(--card-ink);
+  font-size: 2.6cqi;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.artwork-card-collector {
+  display: flex;
+  justify-content: space-between;
+  gap: 2cqi;
+  margin-bottom: .6cqi;
+  font-size: 3.3cqi;
+}
+
+.artwork-card-source { display: inline-block; margin-top: .35cqi; color: inherit; font-size: 2.3cqi; text-decoration: none; }

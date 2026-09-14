@@ -100,9 +100,14 @@ History is local to that browser and origin. It does not synchronize across devi
 | CSS | Numbered custom properties such as `--color-1` and `--color-1-rgb`; web styling |
 | PNG swatch strip | An 800 × 200 image with color bands and hex labels; visual reference |
 | Adobe ASE | Named RGB swatches; import into software supporting Adobe Swatch Exchange |
-| Artwork card | A 1200 × 1440 PNG containing artwork, palette, hex values, museum link, attribution, and rights text |
+| Classic artwork image | The original 1200 × 1440 PNG layout with artwork, palette, hex values, attribution, and museum link; selected by default |
+| Card | A 1200 × 1680 framed PNG containing the uncropped artwork, selected palette, hex values, museum link, attribution, and rights text |
 
 The ordinary palette exports are produced in the browser. The artwork card also needs the selected museum image to load. A JSON palette export is not a complete backup of history, locks, or artwork metadata. ASE names use the hex values; do not assume optional poetic Tone names become ASE swatch names.
+
+In Save & share, choose **Classic** to keep the original export or **Card** to preview the cursive design. The choice lasts for the current page session. The card frame borrows colors from your selected palette, with self-hosted Allura and Dancing Script fonts and a shaped title banner. Five or six swatches share one row; seven or eight use two rows. Its preview and PNG use the same HTML/CSS layout; the original image is fitted without cropping. Both exports remain local to your browser and do not save a shared palette or call Tone.
+
+Image requests use the museum's reported source width to avoid asking for an enlargement that its image server rejects. This applies to artwork display, local extraction, Tone image preparation, thumbnails, shared views, and card exports. If source dimensions are missing, the existing size tier is used; unrelated museum outages can still make an image unavailable.
 
 ### Shareable links
 
@@ -113,6 +118,8 @@ The saved URL remains visible if copying or native sharing is denied or cancelle
 Anyone with the URL can view that palette. There is no account-based access control, edit history, revocation UI, or user-facing deletion endpoint. Share links do not preserve workbench locks or the Tone description. They still depend on museum artwork metadata/images for the artwork presentation.
 
 ## Desktop, mobile, and accessibility behavior
+
+On mobile, pull down on a sheet's header or on non-interactive content that is already scrolled to the top to close it. Short pulls return the sheet to its original position. Scrolling, form controls, and links keep their normal behavior. The Close button, Escape key, and backdrop dismissal remain available; desktop drawers do not use pull-down dismissal.
 
 On desktop (1,024 CSS pixels wide and above), the workbench fits the viewport without a page scrollbar at typical window heights. The artwork stays fully visible without cropping; the bottom palette dock keeps color count, extraction mode, regeneration, Random, and locks close at hand. Swatches form a centered group with consistent, capped widths instead of stretching across the screen. Click a swatch to copy its hex value; use its separate Lock button to guide the next artwork. Long artwork captions are shortened in the dock; click the caption to read the full details.
 

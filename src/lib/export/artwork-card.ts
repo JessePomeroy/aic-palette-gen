@@ -8,7 +8,9 @@ export async function exportArtworkCard(
 ): Promise<Blob> {
 	if (!artwork.image_id || !colors.length)
 		throw new Error("Choose an artwork and palette first.");
-	const blob = await fetchImageBlob(getImageUrl(artwork.image_id, "large"));
+	const blob = await fetchImageBlob(
+		getImageUrl(artwork.image_id, "large", artwork.thumbnail?.width),
+	);
 	const image = await createImageBitmap(blob);
 	try {
 		const canvas = document.createElement("canvas");
