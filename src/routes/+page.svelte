@@ -259,8 +259,8 @@
         await regeneratePalette();
     }
 
-    async function generateTone(imageId: string, count: number, stillCurrent: () => boolean): Promise<PaletteVariant> {
-        const image = await fetchImageBlob(getImageUrl(imageId, 'medium'));
+    async function generateTone(imageId: string, count: number, stillCurrent: () => boolean, nativeWidth?: number): Promise<PaletteVariant> {
+        const image = await fetchImageBlob(getImageUrl(imageId, 'medium', nativeWidth));
         if (!stillCurrent()) throw new Error('Selection changed.');
         const res = await fetch(`/api/ai-palette?count=${count}`, {
             method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: image
@@ -276,16 +276,17 @@
         const request = ++comparisonRequest;
         const imageId = artwork.image_id;
         const count = colorCount;
+        const nativeWidth = artwork.thumbnail?.width;
         comparisonBusy = true;
         comparisonError = '';
         try {
             if (tone) {
-                const variant = await generateTone(imageId, count, () => request === comparisonRequest);
+                const variant = await generateTone(imageId, count, () => request === comparisonRequest, nativeWidth);
                 if (request === comparisonRequest) variants = { ...variants, ai: variant };
             } else {
                 for (const mode of ['dominant', 'vibrant'] as const) {
                     if (variants[mode]) continue;
-                    const result = await extractColors(getImageUrl(imageId, 'large'), mode, count);
+                    const result = await extractColors(getImageUrl(imageId, 'large', nativeWidth), mode, count);
                     if (request !== comparisonRequest) return;
                     if (!result.length) throw new Error('Could not compare these palettes. Please try again.');
                     variants = { ...variants, [mode]: { colors: result, description: '' } };
@@ -464,7 +465,7 @@
             aiDescription = "";
             paletteLoading = true;
             const extracted = await extractColors(
-                getImageUrl(artwork.image_id, "large"),
+                getImageUrl(artwork.image_id, "large", artwork.thumbnail?.width),
                 extractionMode,
                 colorCount,
             );
@@ -480,7 +481,7 @@
         if (!artwork?.image_id) return;
         aiLoading = true;
         try {
-            const data = await generateTone(artwork.image_id, colorCount, () => request === paletteRequest);
+            const data = await generateTone(artwork.image_id, colorCount, () => request === paletteRequest, artwork.thumbnail?.width);
             if (request !== paletteRequest) return;
             acceptPalette('ai', data);
         } catch (e) {
@@ -629,7 +630,7 @@
                         >
                             {#if result.image_id}
                                 <img
-                                    src={getImageUrl(result.image_id, "thumb")}
+                                    src={getImageUrl(result.image_id, "thumb", result.thumbnail?.width)}
                                     onerror={fallbackImage}
                                     alt=""
                                     class="h-10 w-10 object-cover rounded-sm"
@@ -785,7 +786,7 @@
                 <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 mt-4">
                     {#each recent as entry (entry.id)}
                         <button class="history-item text-left min-w-0" onclick={() => restoreRecent(entry)} title={`Restore ${entry.artwork.title} (${entry.mode === 'ai' ? 'tone' : entry.mode})`}>
-                            {#if entry.artwork.image_id}<img loading="lazy" src={getImageUrl(entry.artwork.image_id, 'small')} onerror={fallbackImage} alt="" class="h-20 w-full object-cover rounded-t-md" />{/if}
+                            {#if entry.artwork.image_id}<img loading="lazy" src={getImageUrl(entry.artwork.image_id, 'small', entry.artwork.thumbnail?.width)} onerror={fallbackImage} alt="" class="h-20 w-full object-cover rounded-t-md" />{/if}
                             <span class="flex h-5">{#each entry.colors as color}<span class="flex-1" style={`background:${color.hex}`}></span>{/each}</span>
                             <span class="block p-2 text-xs truncate">{entry.artwork.title}</span>
                             <span class="block px-2 pb-2 text-[10px] opacity-70">{entry.mode === 'ai' ? 'tone' : entry.mode} · {entry.colors.length} colors</span>
@@ -819,7 +820,7 @@
             {#if loading}
                 <p role="status">Finding artwork…</p>
             {:else if artwork?.image_id}
-                <img src={getImageUrl(artwork.image_id, 'large')} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} class="artwork-image" />
+                <img src={getImageUrl(artwork.image_id, 'large', artwork.thumbnail?.width)} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} class="artwork-image" />
             {:else}
                 <p>No artwork available. Try Random.</p>
             {/if}
@@ -884,7 +885,7 @@
             {#if loading}
                 <p role="status">Finding artwork…</p>
             {:else if artwork?.image_id}
-                <img src={getImageUrl(artwork.image_id, 'large')} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} />
+                <img src={getImageUrl(artwork.image_id, 'large', artwork.thumbnail?.width)} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} />
             {:else}
                 <p>No artwork available. Try Random.</p>
             {/if}

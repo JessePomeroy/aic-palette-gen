@@ -6,26 +6,34 @@
 
 It also checks that desktop/mobile actions, locked controls and modal tools share the current artwork accent; dark/light palettes retain readable text and focus indicators; and artwork selection/history restoration update the theme without changing global page colors.
 
+`palette-image-size.mjs` replays the museum's no-enlargement responses for narrow artworks. It checks initial load, refresh, count changes, mode comparison, and artwork-card downloads on desktop/mobile without contacting the museum.
+
 Start an isolated local dev server with empty provider/database settings, record its PID, and use an installed Playwright module/browser pair. Playwright is an optional verification tool, not a new production dependency or part of the default Node test suite.
 
-```bash
-DATABASE_URL='' GEMINI_API_KEY='' npm run dev -- --host 127.0.0.1 --port 5185 --strictPort
+```fish
+env DATABASE_URL='' GEMINI_API_KEY='' npm run dev -- --host 127.0.0.1 --port 5185 --strictPort
 ```
 
 In another terminal, use the local installed Playwright module path when it is not available through normal package resolution:
 
-```bash
-PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+```fish
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node --import tsx tests/browser/workbench-layout.mjs chromium
 
-PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node --import tsx tests/browser/workbench-layout.mjs webkit
 
-PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node --import tsx tests/browser/workbench-quality.mjs chromium
 
-PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node --import tsx tests/browser/workbench-quality.mjs webkit
+
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+  node tests/browser/palette-image-size.mjs chromium
+
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+  node tests/browser/palette-image-size.mjs webkit
 ```
 
 `WORKBENCH_TEST_URL` can select a different localhost port. `WORKBENCH_TEST_OUTPUT` optionally saves rendered screenshots. Stop only the isolated dev server you started. No command here deploys or modifies the active artwork index.

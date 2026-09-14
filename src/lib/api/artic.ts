@@ -72,13 +72,14 @@ export interface SearchResponse {
 /**
  * Build a IIIF image URL for a given artwork image.
  *
- * The AIC IIIF server supports arbitrary sizes, but we use preset tiers
- * to keep things simple and cacheable. The URL format follows the IIIF
+ * AIC rejects enlargement, so cap preset widths at the known source width.
+ * Missing dimensions retain the existing size tiers. The URL follows the IIIF
  * Image API 2.0 spec: {base}/{id}/{region}/{size}/{rotation}/{quality}.{format}
  */
 export function getImageUrl(
 	imageId: string,
 	size: "full" | "large" | "medium" | "small" | "thumb" = "full",
+	nativeWidth?: number,
 ): string {
 	const sizes: Record<string, number> = {
 		full: 1686, // Max resolution — good for detail views
@@ -87,7 +88,13 @@ export function getImageUrl(
 		small: 200, // Small thumbnails
 		thumb: 100, // Tiny previews
 	};
-	return `https://www.artic.edu/iiif/2/${imageId}/full/${sizes[size]},/0/default.jpg`;
+	const width =
+		typeof nativeWidth === "number" &&
+		Number.isFinite(nativeWidth) &&
+		nativeWidth >= 1
+			? Math.min(sizes[size], Math.floor(nativeWidth))
+			: sizes[size];
+	return `https://www.artic.edu/iiif/2/${imageId}/full/${width},/0/default.jpg`;
 }
 
 /**

@@ -104,6 +104,8 @@ History is local to that browser and origin. It does not synchronize across devi
 
 The ordinary palette exports are produced in the browser. The artwork card also needs the selected museum image to load. A JSON palette export is not a complete backup of history, locks, or artwork metadata. ASE names use the hex values; do not assume optional poetic Tone names become ASE swatch names.
 
+Image requests use the museum's reported source width to avoid asking for an enlargement that its image server rejects. This applies to artwork display, local extraction, Tone image preparation, thumbnails, shared views, and card exports. If source dimensions are missing, the existing size tier is used; unrelated museum outages can still make an image unavailable.
+
 ### Shareable links
 
 Sharing saves the current swatches, artwork ID, mode, and count on the server and returns a UUID link. A visitor opening that link sees the saved colors; they are not re-extracted from the image.
