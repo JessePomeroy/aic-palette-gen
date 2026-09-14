@@ -12,6 +12,8 @@ It also checks that desktop/mobile actions, locked controls and modal tools shar
 
 Start an isolated local dev server with empty provider/database settings, record its PID, and use an installed Playwright module/browser pair. Playwright is an optional verification tool, not a new production dependency or part of the default Node test suite.
 
+`sheet-dismiss.mjs` checks pull-down dismissal across all five mobile tool sheets, short/cancelled pulls, control exclusions, scrolling, focus restoration, resizing, and reduced motion. Chromium uses native CDP touch input, including actual scroll checks. WebKit replays touch events through the real DOM handlers because its automation API does not provide native swipes; this is not a physical iPhone gesture test.
+
 ```fish
 env DATABASE_URL='' GEMINI_API_KEY='' npm run dev -- --host 127.0.0.1 --port 5185 --strictPort
 ```
@@ -42,6 +44,12 @@ env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
 
 env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node tests/browser/palette-image-size.mjs webkit
+
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+  node tests/browser/sheet-dismiss.mjs chromium
+
+env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
+  node tests/browser/sheet-dismiss.mjs webkit
 ```
 
 `WORKBENCH_TEST_URL` can select a different localhost port. `WORKBENCH_TEST_OUTPUT` optionally saves rendered screenshots. Stop only the isolated dev server you started. No command here deploys or modifies the active artwork index.

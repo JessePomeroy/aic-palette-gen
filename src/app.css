@@ -109,14 +109,25 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .workbench-theme { display: contents; }
 .artwork-card-preview { width: 100%; max-width: 28rem; margin-inline: auto; }
 .card-format { min-width: 0; margin-bottom: 1rem; }
-.card-format-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
-.card-format-option { display: flex; align-items: center; gap: .6rem; padding: .75rem; border: 1px solid var(--border); border-radius: 6px; font-size: .8rem; cursor: pointer; }
-.card-format-option:has(input:checked) { border-color: var(--accent-focus); background: var(--bg-elevated); }
-.card-format-option input { width: 1rem; height: 1rem; flex-shrink: 0; accent-color: var(--accent); }
-.card-format-option input:focus-visible { outline: 2px solid var(--accent-focus); outline-offset: 3px; }
-.card-format-description { display: block; margin-top: .2rem; font-size: .7rem; color: var(--text-secondary); }
+.card-format-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; width: 100%; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-primary); }
+.card-format-option { position: relative; display: grid; place-items: center; min-height: 44px; padding: 8px 16px; border-radius: 5px; font-size: .8rem; color: var(--text-secondary); cursor: pointer; }
+.card-format-option:has(input:checked) { background: var(--bg-elevated); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--border); }
+.card-format-option:has(input:enabled):hover { color: var(--text-primary); }
+/* Keep native radio keyboard behavior without showing a second visual control. */
+.card-format-option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+/* WebKit can drop :focus-visible when arrow keys change the selected radio. */
+.card-format-option:focus-within { outline: 2px solid var(--accent-focus); outline-offset: -2px; }
 .card-format:disabled { opacity: .45; }
 .card-format:disabled .card-format-option { cursor: not-allowed; }
+.artwork-export-actions { display: grid; margin: 16px 0; }
+.artwork-export-actions > button { width: 100%; min-height: 44px; }
+.artwork-export-actions > [role='status']:not(:empty) { margin-top: 8px; }
+.palette-save-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.palette-save-actions > button { min-width: 0; min-height: 44px; padding: 8px 4px; }
+.palette-save-actions > [role='status'], .palette-save-actions > a { grid-column: 1 / -1; overflow-wrap: anywhere; }
+@media (forced-colors: active) {
+  .card-format-option:has(input:checked) { outline: 2px solid Highlight; outline-offset: -2px; }
+}
 
 /* Desktop keeps the artwork and palette in view; longer tools live in a drawer. */
 .desktop-workbench {
@@ -250,6 +261,7 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 }
 .workbench-sheet[open] { display: flex; flex-direction: column; animation: sheet-enter 240ms cubic-bezier(.2, .8, .2, 1); }
 .workbench-sheet::backdrop { background: rgb(0 0 0 / .65); }
+.workbench-sheet-grip { width: 36px; height: 4px; flex-shrink: 0; margin: 10px auto 2px; border-radius: 2px; background: var(--text-muted); }
 html:has(.workbench-sheet[open]), body:has(.workbench-sheet[open]) { overflow: hidden; overscroll-behavior: none; }
 @keyframes sheet-enter { from { transform: var(--panel-closed-transform); } to { transform: translate(0, 0); } }
 .workbench-sheet-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; padding: 6px 16px; border-bottom: 1px solid var(--border); }
@@ -274,6 +286,7 @@ html:has(.workbench-sheet[open]), body:has(.workbench-sheet[open]) { overflow: h
     box-shadow: -12px 0 40px rgb(0 0 0 / .3);
   }
   .workbench-sheet.wide-panel { width: min(760px, calc(100vw - 80px)); }
+  .workbench-sheet-grip { display: none; }
   .workbench-sheet-header { padding: 12px 24px; }
   .workbench-sheet-content { padding: 24px; }
 }

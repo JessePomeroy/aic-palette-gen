@@ -30,6 +30,7 @@
     } from "$lib/export/palette";
     import { exportArtworkCard } from '$lib/export/artwork-card';
     import { exportCard } from '$lib/export/card';
+    import { pullToDismiss } from '$lib/interactions/pull-to-dismiss';
     import { applyLocks, readableText, suggestTextColor } from '$lib/colors/workbench';
     import { createIndexedSearch } from '$lib/colors/indexed-search';
     import { HISTORY_KEY, parseHistory, rememberPalette, type RecentPalette } from '$lib/history';
@@ -745,7 +746,7 @@
     <div class="card-format-options">
         <label class="card-format-option">
             <input type="radio" name="card-format" value="classic" bind:group={cardFormat} onchange={() => cardStatus = ''} />
-            <span>Classic<span class="card-format-description">Original layout</span></span>
+            <span>Classic</span>
         </label>
         <label class="card-format-option">
             <input type="radio" name="card-format" value="card" bind:group={cardFormat} onchange={() => cardStatus = ''} />
@@ -758,13 +759,13 @@
         <ArtworkCard {artwork} {colors} />
     </div>
 {/if}
-<div class="flex flex-wrap items-center gap-3 my-5">
+<div class="artwork-export-actions">
                         <button class="tool-button" disabled={busy || cardBusy || !artwork || !colors.length || Boolean(paletteError)} onclick={downloadCard}>{cardBusy ? "Creating card…" : cardFormat === 'card' ? 'Download card' : 'Download artwork + palette card'}</button>
                         <span role="status" class="text-xs">{cardStatus}</span>
                     </div>
 
                     <!-- The same save controls are available in both sheet layouts. -->
-                    <div class="flex flex-wrap items-center gap-2" class:invisible={busy || Boolean(paletteError)}>
+                    <div class="palette-save-actions" class:invisible={busy || Boolean(paletteError)}>
                         <button
                             onclick={handleShare}
                             disabled={sharing || busy || !colors.length}
@@ -773,16 +774,6 @@
                         >
                             share
                         </button>
-                        {#if shareStatus}
-                            <span
-                                role="status"
-                                class="text-xs"
-                                style="color: var(--text-muted);"
-                                >{shareStatus}</span
-                            >
-                        {/if}
-                        {#if shareUrl}<a class="text-xs underline" href={shareUrl}>Open saved palette</a>{/if}
-                        <span style="color: var(--border);">·</span>
                         {#each exportFormats as fmt}
                             <button
                                 onclick={() => handleExport(fmt)}
@@ -793,6 +784,15 @@
                                 {fmt === "ase" ? ".ase" : fmt}
                             </button>
                         {/each}
+                        {#if shareStatus}
+                            <span
+                                role="status"
+                                class="text-xs"
+                                style="color: var(--text-muted);"
+                                >{shareStatus}</span
+                            >
+                        {/if}
+                        {#if shareUrl}<a class="text-xs underline" href={shareUrl}>Open saved palette</a>{/if}
                     </div>
 {/snippet}
 
@@ -968,7 +968,8 @@
     {@render desktopWorkbench()}
 {/if}
 
-    <dialog bind:this={toolDialog} use:sheetBackdrop id="workbench-tools" class="workbench-sheet" class:wide-panel={activePanel === 'palette' || activePanel === 'history'} aria-labelledby="workbench-panel-title" onclose={() => { panelOpen = false; }} oncancel={(event) => { event.preventDefault(); void closePanel(); }}>
+    <dialog bind:this={toolDialog} use:sheetBackdrop use:pullToDismiss={() => { void closePanel(); }} id="workbench-tools" class="workbench-sheet" class:wide-panel={activePanel === 'palette' || activePanel === 'history'} aria-labelledby="workbench-panel-title" onclose={() => { panelOpen = false; }} oncancel={(event) => { event.preventDefault(); void closePanel(); }}>
+        <div class="workbench-sheet-grip" aria-hidden="true"></div>
         <div class="workbench-sheet-header">
             <h2 id="workbench-panel-title">{panelTitles[activePanel]}</h2>
             <button onclick={closePanel}>Close</button>

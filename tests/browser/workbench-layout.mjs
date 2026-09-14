@@ -42,6 +42,43 @@ const artwork = (id = 101) => ({
 	},
 });
 
+async function alignedSaveActions(page) {
+	const geometry = await page.evaluate(() => {
+		const bounds = (element) => {
+			const { left, right, top, height } = element.getBoundingClientRect();
+			return { left, right, top, height };
+		};
+		return {
+			rows: [
+				".card-format-options",
+				".artwork-export-actions > button",
+				".palette-save-actions",
+			].map((selector) => bounds(document.querySelector(selector))),
+			buttons: [
+				...document.querySelectorAll(".palette-save-actions > button"),
+			].map(bounds),
+		};
+	});
+	for (const row of geometry.rows) {
+		assert.ok(
+			Math.abs(row.left - geometry.rows[0].left) < 1,
+			"Save rows share a left edge",
+		);
+		assert.ok(
+			Math.abs(row.right - geometry.rows[0].right) < 1,
+			"Save rows share a right edge",
+		);
+	}
+	assert.equal(geometry.buttons.length, 5);
+	for (const button of geometry.buttons) {
+		assert.ok(
+			Math.abs(button.top - geometry.buttons[0].top) < 1,
+			"Format buttons remain on one row",
+		);
+		assert.ok(button.height >= 44, "Format buttons retain touch-sized targets");
+	}
+}
+
 async function session(
 	viewport = { width: 1440, height: 900 },
 	reducedMotion = "reduce",
@@ -395,6 +432,7 @@ try {
 	await fits(page, "tone remains viewport-sized outside drawer");
 
 	dialog = await openTool(page, "Save & share");
+	await alignedSaveActions(page);
 	await dialog.getByRole("button", { name: "share", exact: true }).click();
 	await dialog
 		.getByText("Sharing fixture unavailable; please try again.")
@@ -402,6 +440,7 @@ try {
 	state.shareFails = false;
 	await dialog.getByRole("button", { name: "share", exact: true }).click();
 	await dialog.getByRole("link", { name: "Open saved palette" }).waitFor();
+	await alignedSaveActions(page);
 	assert.equal(state.saves, 2);
 	for (const name of [
 		"json",
@@ -432,6 +471,7 @@ try {
 		await page.setViewportSize({ width, height });
 		await fits(page, `mobile ${width}x${height}`);
 		dialog = await openTool(page, "Save");
+		await alignedSaveActions(page);
 		await dialog.getByRole("button", { name: "share", exact: true }).waitFor();
 		await fits(page, `mobile save sheet ${width}x${height}`);
 		await page.keyboard.press("Escape");

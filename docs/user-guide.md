@@ -119,6 +119,8 @@ Anyone with the URL can view that palette. There is no account-based access cont
 
 ## Desktop, mobile, and accessibility behavior
 
+On mobile, pull down on a sheet's header or on non-interactive content that is already scrolled to the top to close it. Short pulls return the sheet to its original position. Scrolling, form controls, and links keep their normal behavior. The Close button, Escape key, and backdrop dismissal remain available; desktop drawers do not use pull-down dismissal.
+
 On desktop (1,024 CSS pixels wide and above), the workbench fits the viewport without a page scrollbar at typical window heights. The artwork stays fully visible without cropping; the bottom palette dock keeps color count, extraction mode, regeneration, Random, and locks close at hand. Swatches form a centered group with consistent, capped widths instead of stretching across the screen. Click a swatch to copy its hex value; use its separate Lock button to guide the next artwork. Long artwork captions are shortened in the dock; click the caption to read the full details.
 
 Search, Palette, History, and Save & share open right-side drawers. Palette contains full color names, mode comparisons, and contrast tools. These drawers scroll internally and can be dismissed with Close, Escape, or a click on the backdrop. Keyboard focus returns to the opener when it is still present.

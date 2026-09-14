@@ -256,8 +256,29 @@ try {
 			.getByRole("button", { name: /^(Save|Save & share)$/ })
 			.click();
 		const classic = page.getByRole("radio", { name: /^Classic/ });
-		if (expectDefault) assert.ok(await classic.isChecked());
-		else await classic.check();
+		if (expectDefault) {
+			assert.ok(await classic.isChecked());
+			await page
+				.getByRole("dialog")
+				.getByRole("button", { name: "Close", exact: true })
+				.focus();
+			await page.keyboard.press("Tab");
+			assert.ok(
+				await classic.evaluate((input) => input === document.activeElement),
+			);
+			await classic.press("ArrowRight");
+			const card = page.getByRole("radio", { name: "Card", exact: true });
+			assert.ok(await card.isChecked(), "Arrow keys select the next format");
+			assert.equal(
+				await card.evaluate(
+					(input) => getComputedStyle(input.closest("label")).outlineStyle,
+				),
+				"solid",
+				"Keyboard focus remains visible on the segment",
+			);
+			await card.press("ArrowLeft");
+			assert.ok(await classic.isChecked());
+		} else await classic.check();
 		assert.equal(await page.locator(".artwork-card").count(), 0);
 		const colors = await page
 			.locator("main .desktop-color, main .mobile-swatch")
