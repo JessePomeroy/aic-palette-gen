@@ -12,7 +12,7 @@ The paths below that identify this machine are for the existing approved job. Ge
 
 The working repository is named `aic-palette-gen`, while the product name is ChromaCollection. Inspect its `AGENTS.md`, current Git state, and scripts before changes. Both `package-lock.json` and `pnpm-lock.yaml` currently exist; the examples here use the npm script invocations verified during this work. Do not casually regenerate both lockfiles or change dependency policy as part of unrelated edits.
 
-```bash
+```fish
 npm install
 npm run check
 npm test
@@ -27,7 +27,7 @@ Configure private environment values only in the intended ignored development en
 
 Use an isolated development Neon branch for write tests. The database initializer changes a database schema and should only be run against an explicitly approved new development database that needs the table:
 
-```bash
+```fish
 npx tsx scripts/init-db.ts
 ```
 
@@ -55,6 +55,8 @@ Tests using stubbed database/provider transports are not live external-service t
 
 | Script | Role | Output/restart model |
 |---|---|---|
+| `colors:package` | Package a completed, audited scan as v3 tiles and sample packs | New directory only; validates canonical hashes; manifest written last |
+| `colors:upload` | Upload an explicitly approved release to the dedicated R2 bucket | Checkpointed, checksum-confirmed uploads; manifest withheld without `--publish` |
 | `colors:catalog` | Import an extracted historical bulk artwork folder | Deterministic catalog/provenance/exclusions; missing files can be completed without overwriting differing data |
 | `colors:refresh` | Collect and reconcile the live eligible catalog | Immutable saved pages, bounded ID traversal, final coverage checks |
 | `colors:download` | Prepare/extend a category-balanced corpus, up to 2,500 artworks | New directory; reuses completed manifests, not an interrupted-job resume engine |
@@ -67,7 +69,7 @@ Detailed invocations and contracts are in [catalog import](full-artwork-catalog.
 
 ## Scan monitoring and restarts
 
-The current approved scan runs in a **transient user-level systemd service**, outside the interactive command session. This keeps it alive through normal chat/terminal activity while the user session/service manager and machine remain available. It is not an enabled boot service or a guarantee of survival across reboot, logout, power loss, or storage failure.
+The completed approved scan ran in a **transient user-level systemd service**, outside the interactive command session. It stopped normally after the successful 2026-09-14 audit. The following describes its operating model for authorized future work: it survives normal chat/terminal activity while the user session/service manager and machine remain available, but is not an enabled boot service or a guarantee across reboot, logout, power loss, or storage failure. Do not restart a completed scan merely because its service is inactive.
 
 Current service name:
 
@@ -77,7 +79,7 @@ chromacollection-full-scan-20260913.service
 
 Read-only checks:
 
-```bash
+```fish
 systemctl --user show chromacollection-full-scan-20260913.service \
   -p ActiveState -p SubState -p MainPID -p NRestarts
 
@@ -111,7 +113,7 @@ The service uses `Restart=on-failure`, a 300-second service restart delay, and `
 
 Only use these mutations for the owned, approved service—not a broad process-name kill:
 
-```bash
+```fish
 systemctl --user stop chromacollection-full-scan-20260913.service
 systemctl --user start chromacollection-full-scan-20260913.service
 ```
@@ -150,11 +152,25 @@ The monitor stops after completion. A service that is inactive with a successful
 
 ## Release and rollback
 
-The full scan is not a deployable release. Before any expansion, choose asset packaging/search architecture, reconcile the runtime's 2,500-check/30-second limits with the larger corpus, validate accuracy and device performance, decide hosting/storage, and review skipped data. The `.rgba.gz` staging format requires deliberate conversion or a separately designed loader; simply changing the path constant is insufficient.
+The approved 2026-09-14 release packages 59,025 audited artworks into v3 color tiles, metadata pages, and lossless sample packs. Data lives in the **separate `chromacollection-index` R2 bucket**, in the same Cloudflare account as Angels Rest. Its only public access is the GET/HEAD/OPTIONS Worker in `workers/color-index/`; the app remains on Vercel. Existing buckets and DNS are unchanged. The public asset root is `https://chromacollection-index.thinkingofview.workers.dev/v3/full-59025-20260914`.
+
+General commands (substitute deliberately; these are external writes only when approved):
+
+```fish
+npm run colors:package -- --scan /absolute/scan --catalog /absolute/catalog/artworks.json --output /absolute/new-assets
+npm run colors:upload -- --assets /absolute/new-assets --account APPROVED_ACCOUNT_ID --prefix v3/new-release --checkpoint /absolute/upload-receipts.jsonl
+# After upload and release verification, repeat the upload command with --publish.
+```
+
+The uploader reads `CLOUDFLARE_API_TOKEN` from the environment, or an existing Wrangler OAuth file via `--token-file`. Never paste credentials into commands, logs, docs, or committed config. It uploads only the allowlisted release inventory; `release-report.json`, originals, and receipts stay local. R2 confirms each object's MD5 and size; local bytes must also match the inventory SHA-256. Checkpoints are bound to account, bucket, prefix, and manifest hash. Existing differing releases are refused. Keep checkpoints outside public assets and do not edit them to skip validation.
+
+Deploy the read-only gateway with `wrangler deploy --config workers/color-index/wrangler.jsonc` only with release authority. Verify ordinary and ranged reads, CORS, and hashes through its public URL. Publish the manifest last, then set `static/color-index/release.json` to that root and manifest SHA-256 and deploy the tested app source through the approved Vercel workflow. The manifest for this release hashes to `8d8c3d840db731b95068ec64a0eabdf10f4cde9c82abf9989fcd19d2c549103f`.
+
+Browser queries remain bounded at 12 MiB of downloaded response bodies, 2,500 checks, and 30 seconds. Complex queries may correctly return incomplete. A rollout must verify real hosted data as well as fixtures. Full original/sample audits are retained with the scan; publication does not authorize their removal.
 
 Review [release-checklist.md](release-checklist.md) for historical local checks and external approvals. Environment configuration changes do not update already-built deployments. Never assume an old preview uses an isolated development database merely because newer environment settings do.
 
-Keep released asset directories immutable. A rollback selects an approved older complete release and deploys it through the approved workflow; it does not overwrite samples or delete saved palettes. Retain the frozen catalog, source manifests, provenance, receipts, originals, and audit reports until a separate retention/cleanup decision is approved.
+Keep released asset directories immutable. A v3 rollback selects an older complete v3 root/hash and redeploys the pointer. Rolling back to the old bundled 2,500-artwork v2 release requires its matching earlier app deployment, not a v3 pointer aimed at v2 files. Rollback never overwrites samples or deletes saved palettes. Retain the frozen catalog, source manifests, provenance, receipts, originals, and audit reports until a separate retention/cleanup decision is approved.
 
 ## Maintaining these docs
 

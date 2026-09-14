@@ -14,7 +14,7 @@ The completed baseline accounts for all 134,078 archive artwork records: 57,556 
 
 Download and retain the official archive outside the repository. Record its response headers. Validate the archive's artwork members before extraction: accept only regular, unique `artic-api-data/json/artworks/<positive-integer>.json` files; reject links, traversal paths, and duplicates. Extract only that subtree into a fresh directory with ownership and permission restoration disabled. Do not extract the archive's Git directory or unrelated resource folders.
 
-```bash
+```fish
 npm run colors:catalog -- \
   --input /absolute/path/extracted/artic-api-data/json/artworks \
   --archive /absolute/path/artic-api-data.tar.bz2 \

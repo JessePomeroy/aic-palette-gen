@@ -13,7 +13,7 @@ The application does not require an account. It does not currently offer a perso
 1. Open the workbench. It attempts to select an artwork with an image and generates a five-color dominant palette.
 2. Use **Random** for another artwork, or open **Find artwork** and search by subject, title, or artist.
 3. Choose five to eight colors and try **Dominant** or **Vibrant**.
-4. Tap a swatch to copy its hex code. Lock any swatches you want to preserve.
+4. On desktop, click a swatch to copy and use its Lock control. On mobile, tap a swatch to lock it; open Palette tools to copy colors.
 5. With locks present, **Random matching art** looks for another artwork containing all those colors in the current color index.
 6. Use **Save & share** to download a palette, create an artwork card, or save a shareable link.
 
@@ -21,7 +21,7 @@ An artwork can have metadata and an image ID yet still fail to load. If that hap
 
 ## Find artwork
 
-The discovery search uses the museum's live metadata service, not the smaller bundled color index. The interface offers keyword, artist, medium, period, and public-domain controls, with 12 results per page.
+The discovery search uses the museum's live metadata service, not the frozen color index. The interface offers keyword, artist, medium, period, and public-domain controls, with 12 results per page.
 
 Filters combine: a work needs to satisfy the selected constraints, not just one of them. Date filtering includes artworks whose date range overlaps the requested period. Broaden or clear filters if no results appear.
 
@@ -34,7 +34,7 @@ Manually choosing a search result does **not** enforce your locked-color constra
 | State | Behavior |
 |---|---|
 | No locked colors | Uses the museum listing API to select artwork; this is not a statistically uniform draw from the entire collection |
-| One or more locked colors | Searches the bundled 2,500-artwork color index and verifies every lock |
+| One or more locked colors | Searches the hosted 59,025-artwork color index and verifies every lock |
 | Manual search selection | Selects that result directly, independently of color-index matching |
 
 The unlocked implementation samples among at most the first 10,000 listing positions and tries up to ten metadata candidates to find an image ID. It does not apply the discovery form's filters to Random. “Random” should not be described as guaranteed coverage of every museum artwork.
@@ -69,7 +69,7 @@ All locked colors must be sufficiently present in the **same** artwork's saved w
 
 Small amounts of similar color below the minimum coverage threshold do not qualify. Multiple locks can share some qualifying pixels if the colors are close enough; matching does not require separate spatial regions for each lock.
 
-The current local app searches 2,500 indexed artworks. The larger 59,056-record scan is not automatically available in the interface just because the scan has started or finished.
+The app's full-scan release searches 59,025 indexed artworks from the frozen 59,056-record eligible catalog. The remaining 31 records had explicit image skips. Color data loads in small pieces on demand; the entire collection is not downloaded to your phone. Each search is limited to 12 MiB of index/sample data, 2,500 candidate checks, and 30 seconds. Difficult combinations can therefore return incomplete; this protects bandwidth without loosening the matching rules.
 
 ### Search messages
 
@@ -135,4 +135,4 @@ Buttons expose labels and lock state; feedback uses status regions; motion is re
 
 The application is a way to explore museum data, not a declaration that every discoverable image is free to reuse. The discovery form can include artworks outside the public-domain color index. Follow the artwork's museum link and rights information before reusing an image. Do not infer rights from a successful download or infer a specific rights reason from HTTP 403 alone.
 
-The browser contacts the museum for discovery and images. Production builds initialize Vercel Analytics and load the configured Google font resources. Explicit Tone requests send a small artwork image through the application server to Gemini. Share actions persist a palette in Neon. See the [architecture's data-flow inventory](architecture.md#external-data-flows) for these boundaries.
+The browser contacts the museum for discovery and images, and a read-only Cloudflare endpoint for public indexed color data. Production builds initialize Vercel Analytics and load the configured Google font resources. Explicit Tone requests send a small artwork image through the application server to Gemini. Share actions persist a palette in Neon. See the [architecture's data-flow inventory](architecture.md#external-data-flows) for these boundaries.

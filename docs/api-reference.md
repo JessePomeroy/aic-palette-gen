@@ -13,7 +13,8 @@ This reference describes the repository's handlers, not a promise about a deploy
 | `GET /palette/[id]` | Display a saved palette | Server-loaded page, not a palette JSON endpoint |
 | `POST /api/ai-palette?count=N` | Generate an interpretive Tone palette | Validated colors and description |
 | `GET /api/image?url=...` | Same-origin museum-image fallback | Image response or an upstream/local error |
-| `GET /color-index/<release>/...` | Read bundled index assets | Static JSON or raw canonical sample bytes |
+| `GET /color-index/release.json` | Select the active v3 release | Immutable asset root and manifest SHA-256 |
+| `GET /color-index/<old-release>/...` | Read retained v2 assets for older clients | Static JSON or raw canonical sample bytes |
 
 There is no current account API, palette update/delete API, public full-scan trigger, custom-image import UI, or server endpoint for arbitrary color-index queries. Locked-color search runs in the browser.
 
@@ -132,6 +133,10 @@ Do not confuse this proxy with the bounded offline downloader. The proxy current
 
 ## Static assets and compatibility
 
-The active runtime directory contains `index.json`, `artworks.json`, `report.json`, and `samples/<sha256>.rgba`. Samples are immutable raw pixel data; no image decoder is required to verify them. Index v1 is rejected by the v2 reader because it lacks the canonical-sample contract.
+The same-origin `release.json` pointer is requested with `cache: no-cache`. It identifies an HTTPS asset root and SHA-256 of `manifest.json`. The v3 manifest references the compressed directory, color tiles, metadata pages, and sample packs; each decoded asset is length-bounded and hash-checked. Saved pixels are decompressed, not re-decoded from JPEGs.
 
-The full scan's `.rgba.gz` staging files are not interchangeable URLs for this runtime. A future release must preserve matching IDs, descriptors, file lengths, digests, and policy compatibility as one coherent asset set.
+The public data origin is `https://chromacollection-index.thinkingofview.workers.dev`, with release prefix `/v3/full-59025-20260914`. Its Worker accepts only GET, HEAD, and OPTIONS on allowlisted release paths. Small assets return 200. Sample packs require one explicit `Range: bytes=START-END`, return 206 with exact `Content-Range`, and are limited to 161,000 bytes per request; missing/invalid ranges return 416. Unsupported methods return 405, unavailable objects return 404, and delivery failures return 503. There are no write, listing, or arbitrary-key routes.
+
+Successful responses use immutable one-year cache headers and `no-transform`. CORS allows public reads, the Range request header, and exposed length/range/ETag/cache headers. The underlying bucket remains private; the Worker has only that bucket binding. Data is public artwork evidence, not credentials, local source provenance, or operator reports.
+
+The full scan's `.rgba.gz` staging paths are not interchangeable runtime URLs. Publication preserves identities, sample dimensions, lengths, hashes, and policy as a coherent asset set. Rolling back to retained v2 aggregate/raw assets requires the corresponding older app implementation, not a v3 pointer edit. See [release operations](operations.md#release-and-rollback).

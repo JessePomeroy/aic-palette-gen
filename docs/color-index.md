@@ -1,12 +1,38 @@
 # Locked-color index
 
-**Random with locked colors now searches a bundled 2,500-artwork public-domain index.** The old 36-artwork live rejection scan has been removed. Unlocked Random and manual museum search are unchanged. This is a bounded subset of the collection, not an exhaustive catalog.
+**Random with locked colors searches the audited 59,025-artwork public-domain release.** Unlocked Random and manual museum search are unchanged. The frozen eligible catalog contained 59,056 records; 31 image skips remain explicit exclusions, not color rejections.
+
+## Version 3: full-scan release — 2026-09-14
+
+`static/color-index/release.json` selects the immutable `v3/full-59025-20260914` release in the dedicated `chromacollection-index` R2 bucket. A read-only Cloudflare Worker serves its assets; the app remains on Vercel. This bucket is separate from Angels Rest's storage. No original JPEGs, local source paths, credentials, scan receipts, or private reports are published.
+
+The [packager](../scripts/package-color-scan.ts) requires a completed scan audit and matching receipts/catalog. It validates and losslessly repackages the existing canonical samples; it does not decode or resize JPEGs again. Version 3 changes retrieval and delivery, not the version-2 analysis recipe or strict matching policy.
+
+| Asset | Delivery |
+|---|---|
+| Manifest + artwork directory | 183,672-byte manifest and 195,771-byte gzip directory; hash-checked |
+| Color postings | 1,089 gzip tiles, 41,718,984 bytes total; fetch only tiles relevant to locks |
+| Display metadata | 231 gzip pages of up to 256 artworks; fetched on demand |
+| Canonical samples | 58,881 unique gzip samples inside 231 packs; fetch exact HTTP byte ranges |
+| Entire release | 1,553 files, 3,290,386,093 bytes; never downloaded as a bundle |
+
+`createIndexedSearch` retains the same caller interface. It owns typed candidate buffers, a 16 MiB decoded-asset LRU, eight metadata pages, and 32 verified samples. Conservative histogram rounding-box and hue/chroma bounds eliminate impossible candidates; final acceptance still verifies every lock against the original saved pixels with the unchanged policy. Candidate data loads in windows of four, considered in random draw order rather than response-completion order; a match can leave at most three prefetched samples unused.
+
+Each query has a **12 MiB response-body download budget**, up to **2,500 sample checks**, and the workbench's **30-second deadline**. Reaching a limit returns incomplete, never no-match. This intentionally means difficult multi-lock searches may not exhaust all candidates. The byte budget excludes HTTP overhead and separately loaded display images. Cached assets can reduce subsequent work. Unsupported decompression, failed hashes, unavailable assets, and cancellation preserve the current artwork and locks.
+
+Local full-release Chromium single-lock checks took 64–675 ms, or 263–1,641 ms under 4× desktop CPU slowdown. A difficult green/pink query reached the download budget and correctly returned incomplete. WebKit also passed seven queries against full local data. These are local-network workstation observations with randomized candidate ordering, not physical-phone or public-network latency guarantees. Independent human accuracy calibration remains open.
+
+Public-network verification exposed a 30-second pink-query timeout with serial sample loading. After switching to bounded windows of four, 21 hosted queries across Chromium (normal and 4× CPU slowdown) and WebKit completed without transport/hash errors or timeouts. The 15 single-lock queries matched in 665–5,042 ms; three difficult green/pink queries returned incomplete at the download cap in 10,504–15,634 ms; three impossible saturated-color queries completed with no candidates. Random ordering and cache warmth differ between runs, so these measurements do not establish a guaranteed speedup or latency bound. The user subsequently reported good phone behavior and acceptable locked-match speed and approved the completed production deployment; see [release evidence](release-checklist.md).
+
+See [release operations](operations.md#release-and-rollback) for upload, manifest-last publication, and rollback. Older bundled version-2 directories remain unchanged for older deployments; a v2 rollback requires the corresponding app implementation, not merely a v3 pointer edit.
+
+## Historical 2,500-artwork release
 
 The design reverses that search: analyze selected images once, retrieve possible candidates, then randomly verify candidates until every locked color passes. Histogram retrieval is local; final verification loads the selected candidates' saved pixel samples. No museum JPEG re-download, browser re-decoding, database, or AI call is needed for this verification.
 
-## Current release and integration
+### Version-2 release and integration (historical)
 
-`static/color-index/expanded-2500-20260913/` contains the active version-2 index, matching artwork metadata, immutable RGBA samples and build report. It reuses 965 source images and adds 1,535 successfully downloaded images. The downloader attempted 1,620 new images from a 3,805-candidate pool, replacing 85 excluded inputs: 81 HTTP 403 responses, one HTTP 404 and three embedded ICC profiles requiring normalization. All 2,500 retained images decoded/indexed and passed saved-sample integrity checks. Every reused sample hash is unchanged. Original 843px JPEGs remain outside the repository; untagged JPEGs are explicitly interpreted as sRGB.
+`static/color-index/expanded-2500-20260913/` contains the historical version-2 index, matching artwork metadata, immutable RGBA samples and build report. It reuses 965 source images and adds 1,535 successfully downloaded images. The downloader attempted 1,620 new images from a 3,805-candidate pool, replacing 85 excluded inputs: 81 HTTP 403 responses, one HTTP 404 and three embedded ICC profiles requiring normalization. All 2,500 retained images decoded/indexed and passed saved-sample integrity checks. Every reused sample hash is unchanged. Original 843px JPEGs remain outside the repository; untagged JPEGs are explicitly interpreted as sRGB.
 
 Both `starter-20260912` (481 artworks) and `expanded-20260912` (965 artworks) are retained unchanged for rollback and cached older clients. The initial release had 481 successful images from 500 selections across ten search categories; the second added 484 usable images from 519 new selections.
 
@@ -20,7 +46,7 @@ The UI displays index size and distinguishes:
 
 The app allows up to 2500 candidate checks with a 30-second overall deadline; the current index fits within that bound. A first search fetches the index and metadata; later searches reuse them and lazily cache samples. Versioned asset paths prevent a new release from mixing metadata and pixel samples with an old browser cache. During matching, the UI uses a spinner with stable “Finding a match…” text rather than counting candidates. The indicator is decorative to assistive technology and stops animating for reduced-motion users; cancellation remains available.
 
-The active index JSON is 11,223,902 bytes (3,088,972 gzipped), artwork metadata 1,310,203 bytes (277,323 gzipped), and 2,499 unique sample payloads total 289,433,100 raw bytes for the 2,500 artwork entries. Identical normalized samples share their content-addressed file. Samples are **not** downloaded as one bundle. Compression sizes are measurements, not a claim about a particular host's response configuration. The previous 965-artwork index was 1,253,467 bytes gzipped with 111,684,016 sample bytes; the initial release was 643,678 bytes gzipped with 55,192,452 sample bytes.
+The historical index JSON is 11,223,902 bytes (3,088,972 gzipped), artwork metadata 1,310,203 bytes (277,323 gzipped), and 2,499 unique sample payloads total 289,433,100 raw bytes for the 2,500 artwork entries. Identical normalized samples share their content-addressed file. Samples are **not** downloaded as one bundle. Compression sizes are measurements, not a claim about a particular host's response configuration. The previous 965-artwork index was 1,253,467 bytes gzipped with 111,684,016 sample bytes; the initial release was 643,678 bytes gzipped with 55,192,452 sample bytes.
 
 For the 2,500-artwork release, local Chromium checks found verified results for `#444f40`, `#556052`, `#e8c0c8` and `#bd9751` in 27–1,510 ms across eight searches; the first included catalog loading. Exhaustively rejecting `#444f40` + `#e8c0c8` checked 324 candidates in 2,673 ms. With a simulated 4× slower desktop CPU, individual-lock searches ranged from 78–6,810 ms and the exhaustive two-lock query took 8,123 ms. Random candidate ordering changes verification work; these are observations, not latency guarantees. The previous 965-artwork release observed 17–949 ms for individual locks and 1,006 ms for its exhaustive two-lock query. None of these are physical-phone or full-collection benchmarks.
 
@@ -50,7 +76,7 @@ Example `manifest.json` (the referenced image must already exist locally):
 
 Use the source metadata's update timestamp when known; `null` means it has not been recorded. Paths resolve relative to the manifest, not the shell's working directory. URLs and data URIs are rejected. Only use images you are permitted to analyze.
 
-```bash
+```fish
 pnpm colors:index --manifest /absolute/path/manifest.json --output /absolute/path/new-index-directory
 ```
 
@@ -117,7 +143,7 @@ const result = await findIndexedArtwork(index, ['#8c98ae', '#104ba7'], {
 
 All results include `candidateCount`, `checkedCount`, and `unavailableCount`. Candidate counts are not verified-match counts. Cancellation throws the request's abort reason, including after an in-flight sample load/hash check. Locks and policy are snapshotted across awaits.
 
-The library defaults to at most 16 samples, configurable from 1–2500; the app selects the corpus size, capped at 2500. Each load receives a linked five-second abort signal; loaders must honor it. The caller supplies an overall deadline/cancellation signal. Failure to find a match before the check budget ends is explicitly incomplete, not a negative search result. No further samples are fetched after a verified result.
+The standalone v2 library defaults to at most 16 samples, configurable from 1–2500; its former app wrapper selected the corpus size, capped at 2500. Each load receives a linked five-second abort signal; loaders must honor it. The caller supplies an overall deadline/cancellation signal. Failure to find a match before the check budget ends is explicitly incomplete, not a negative search result. Its serial loader starts no further samples after a verified result. The current v3 wrapper uses the bounded four-candidate windows described above.
 
 Candidates are sampled uniformly without replacement, unseen IDs first, then seen IDs after all unseen candidates have been attempted. A candidate that fails strict verification is discarded, never accepted with a looser tolerance. `repeated` means the returned artwork was seen; if `unavailableCount` is nonzero, it does not prove there were no possible unseen matches. With successfully loaded samples, random rejection sampling preserves equal selection probability among strict matches in the searched tier. It is not uniform over artists or image IDs. The caller owns session history.
 
@@ -129,7 +155,7 @@ With no locks, this module can sample its whole indexed corpus; the app's unrest
 
 ## Verification and next milestone
 
-```bash
+```fish
 node --import tsx --test tests/color-index.test.ts tests/color-index-builder.test.ts
 pnpm test
 pnpm check
@@ -137,7 +163,7 @@ pnpm check
 
 Tests cover reference color bins, all-lock coverage, minority accents, alpha, fixed/explicit policies, file safety, typed index validation, exclusions/repeats, and offline image → saved index → qualifying random ID.
 
-Next: human-labeled queries across the starter corpus, physical-phone latency checks, ICC/resize consistency review, and calibrated coverage before a broader collection release. No corpus-wide download, external deployment or database change was performed for this integration.
+Remaining work: independently labeled accuracy queries, broader device/network measurements, ICC/resize consistency review, and calibrated coverage. The audited full scan and production deployment are complete; no database schema change was needed. The earlier experiments below retain their original limited scope.
 
 ### Version 1 smoke-test findings — 2026-09-12
 

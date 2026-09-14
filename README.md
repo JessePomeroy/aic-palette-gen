@@ -2,7 +2,7 @@
 
 A web app that extracts color palettes from artworks in the [Art Institute of Chicago](https://www.artic.edu/) collection.
 
-Browse and search the museum collection, explore artwork, and generate downloadable color palettes for your creative projects. Locked-color matching currently uses the local 2,500-artwork index; the larger scan is separate from the app's published assets.
+Browse and search the museum collection, explore artwork, and generate downloadable color palettes for your creative projects. [The live app](https://www.chromacollection.online) searches 59,025 audited artworks through on-demand R2 color data. See [release evidence](docs/release-checklist.md) for deployment, browser verification, and user phone feedback.
 
 ## Documentation
 
@@ -22,12 +22,12 @@ Start with the [complete documentation hub](docs/README.md), the [website guide]
 - **Discovery filters** — combine artist, medium, period, and public-domain filters, browse pages, or explore more by the selected artist
 - **Recent palettes** — restore your last 24 palettes, locks, and tone descriptions from this browser, without making another AI request
 - **Contrast guidance** — check text/background pairs, see AA thresholds, and copy a suggested accessible text color
-- **Artwork cards** — export a 1200×1440 PNG containing the artwork, palette, hex values, museum link, and attribution
+- **Artwork images** — preview and export Classic (1200×1440) or Card (1200×1680), with artwork, palette, hex values, museum link, and attribution
 - **One-screen workbench** — artwork, palette locks, color count, mode, and Random fit the desktop and mobile viewport. Search, palette tools, history, exports, and full artwork details open in dismissible right-side drawers on desktop and bottom sheets on mobile; longer panels scroll internally. Desktop swatches support click-to-copy plus separate lock buttons. Seven or eight mobile colors use two rows to keep swatches tappable. Very short viewports retain scrolling for accessibility instead of clipping controls.
 
-With locks, **Random matching art** searches the bundled **2,500-artwork public-domain index**, not a fresh random sample from the museum. It retrieves possible matches from saved color signatures, verifies the original saved pixel samples against **every** lock, and prefers artworks outside your recent history. Only the selected artwork's display/palette image needs a museum download. The index and a bounded cache of verified samples are reused for later searches; there is no fallback to the old 36-image scan. A spinner and stable “Finding a match…” message replace per-candidate counts; reduced-motion preferences are respected.
+With locks, **Random matching art** searches the **59,025-artwork public-domain index**, not a fresh random sample from the museum. It loads relevant color tiles and verifies saved pixel samples against **every** lock, preferring artworks outside your recent history. Only the selected artwork's display/palette image needs a museum download. Data loads on demand within bounded caches and a 12 MiB per-query download limit. There is no fallback to the old 36-image scan. A spinner and stable “Finding a match…” message replace per-candidate counts; cancellation and reduced-motion preferences are respected.
 
-Matching uses the entire canonical sample at up to 200 pixels per side, including backgrounds, frames and display cases: each locked color needs at least 1% of opaque pixels within an Oklab distance of 0.03. Colored locks (Oklab chroma at least 0.015) additionally require those same pixels to retain at least half the lock's chroma and be within 25 degrees of its hue. Neutral locks have no hue requirement. Exact locked hex values stay unchanged. These guards reject the reported gray/green and gold/sepia cases; broader human calibration is still needed. This is approximate image-color matching within a starter subset, **not a whole-collection guarantee**. Search feedback clears on success. A complete no-match is distinguished from unavailable/incomplete index data; either leaves the artwork and palette intact. Without locks, Random remains unrestricted. Manual search selection is not color-filtered.
+Matching uses the entire canonical sample at up to 200 pixels per side, including backgrounds, frames and display cases: each locked color needs at least 1% of opaque pixels within an Oklab distance of 0.03. Colored locks (Oklab chroma at least 0.015) additionally require those same pixels to retain at least half the lock's chroma and be within 25 degrees of its hue. Neutral locks have no hue requirement. Exact locked hex values stay unchanged. These guards reject the reported gray/green and gold/sepia cases; broader human calibration is still needed. This is approximate image-color matching within the frozen indexed corpus, **not a whole-collection guarantee**. Search feedback clears on success. A complete no-match is distinguished from unavailable/incomplete index data; either leaves the artwork and palette intact. Without locks, Random remains unrestricted. Manual search selection is not color-filtered.
 
 Restoring history restores that snapshot’s locks. Unlock any slot beyond a smaller requested color count before reducing the count. Comparisons show original extraction results; applying them preserves locks. History is local to the browser and falls back to session-only storage when storage is unavailable. Clear it from the recent-palettes shelf.
 
@@ -37,7 +37,7 @@ Artwork-card exports include the museum's rights information; consult the linked
 
 Unlocked Random is not a uniform draw from the whole collection: it currently samples from at most 10,000 listing positions and does not apply the discovery form's filters. The [website guide](docs/user-guide.md#what-random-does) explains the different search and Random behaviors.
 
-The [color-index guide](docs/color-index.md) describes the current release, format, build process and limitations. The active index lives at `static/color-index/expanded-2500-20260913/`; the previous 481- and 965-artwork releases are retained for rollback. Original museum JPEGs are not bundled. No new dependencies or database schema changes were needed for the index. See the [release checklist](docs/release-checklist.md) for the isolated Neon development setup, passing local sharing checks, and remaining release gates.
+The [color-index guide](docs/color-index.md) describes the release, format, build process and limitations. `static/color-index/release.json` selects the version-3 release in the dedicated `chromacollection-index` R2 bucket, served through a read-only Worker. The old 481-, 965-, and 2,500-artwork assets remain for their corresponding older app deployments. Original museum JPEGs are not bundled. No new dependencies or database schema changes were needed. See the [release checklist](docs/release-checklist.md) for observed deployment status and checks.
 
 To prepare a new bounded corpus, run `pnpm colors:download --output /path/new-download-directory --limit 500`. This downloads public-domain images sequentially with at least one second between requests. Then build a **new** release directory with `pnpm colors:index --manifest /path/manifest.json --catalog /path/artworks.json --output /path/new-index-directory`. Inspect the reports, verify representative queries, and update the versioned asset path before switching releases. Existing outputs are never overwritten. See the guide before expanding beyond the starter corpus.
 
@@ -52,7 +52,7 @@ To extend a completed corpus without re-downloading its images, add `--extend-ma
 
 ## Setup
 
-```bash
+```fish
 # install dependencies
 npm install
 

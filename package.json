@@ -1,52 +1,54 @@
 {
-  "name": "aic-palette-gen",
-  "private": true,
-  "version": "0.0.1",
-  "type": "module",
-  "scripts": {
-    "colors:supervise": "tsx scripts/supervise-color-scan.ts",
-    "colors:scan": "tsx scripts/run-color-scan.ts",
-    "colors:refresh": "tsx scripts/refresh-artwork-catalog.ts",
-    "colors:catalog": "tsx scripts/import-artwork-catalog.ts",
-    "colors:batch": "tsx scripts/process-color-batches.ts",
-    "colors:download": "tsx scripts/download-color-corpus.ts",
-    "colors:index": "tsx scripts/build-color-index.ts",
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "prepare": "husky",
-    "test": "node --import tsx --test tests/*.test.ts",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.5.13",
-    "@sveltejs/adapter-vercel": "^6.3.3",
-    "@sveltejs/kit": "^2.50.2",
-    "@sveltejs/vite-plugin-svelte": "^6.2.4",
-    "@tailwindcss/vite": "^4.2.1",
-    "dotenv": "^17.3.1",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.3.1",
-    "svelte": "^5.51.0",
-    "svelte-check": "^4.4.2",
-    "tailwindcss": "^4.2.1",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "vite": "^7.3.1"
-  },
-  "dependencies": {
-    "@neondatabase/serverless": "^1.0.2",
-    "@vercel/analytics": "^1.6.1",
-    "node-vibrant": "^4.0.4",
-    "quantize": "^1.0.2"
-  },
-  "lint-staged": {
-    "*.{js,ts}": [
-      "biome check --no-errors-on-unmatched"
-    ],
-    "*.svelte": [
-      "svelte-check --tsconfig ./tsconfig.json"
-    ]
-  }
+	"name": "aic-palette-gen",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"colors:package": "tsx scripts/package-color-scan.ts",
+		"colors:upload": "tsx scripts/upload-color-release.ts",
+		"colors:supervise": "tsx scripts/supervise-color-scan.ts",
+		"colors:scan": "tsx scripts/run-color-scan.ts",
+		"colors:refresh": "tsx scripts/refresh-artwork-catalog.ts",
+		"colors:catalog": "tsx scripts/import-artwork-catalog.ts",
+		"colors:batch": "tsx scripts/process-color-batches.ts",
+		"colors:download": "tsx scripts/download-color-corpus.ts",
+		"colors:index": "tsx scripts/build-color-index.ts",
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "husky",
+		"test": "node --import tsx --test tests/*.test.ts",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.13",
+		"@sveltejs/adapter-vercel": "^6.3.3",
+		"@sveltejs/kit": "^2.50.2",
+		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@tailwindcss/vite": "^4.2.1",
+		"dotenv": "^17.3.1",
+		"husky": "^9.1.7",
+		"lint-staged": "^16.3.1",
+		"svelte": "^5.51.0",
+		"svelte-check": "^4.4.2",
+		"tailwindcss": "^4.2.1",
+		"tsx": "^4.21.0",
+		"typescript": "^5.9.3",
+		"vite": "^7.3.1"
+	},
+	"dependencies": {
+		"@neondatabase/serverless": "^1.0.2",
+		"@vercel/analytics": "^1.6.1",
+		"node-vibrant": "^4.0.4",
+		"quantize": "^1.0.2"
+	},
+	"lint-staged": {
+		"*.{js,ts}": [
+			"biome check --no-errors-on-unmatched"
+		],
+		"*.svelte": [
+			"svelte-check --tsconfig ./tsconfig.json"
+		]
+	}
 }

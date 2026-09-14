@@ -235,3 +235,58 @@ test("rate-limit pauses preserve the upstream Retry-After cooldown", async (t) =
 	assert.equal(result.cursor, 0);
 	assert.equal(result.retryAfterMs, 3600000);
 });
+
+test("narrow originals are not requested above their native width", async (t) => {
+	const f = await fixture(t);
+	const catalog = JSON.parse(await readFile(f.catalog, "utf8"));
+	catalog.artworks[0].thumbnail = { width: 554, height: 3000 };
+	await writeFile(f.catalog, JSON.stringify(catalog));
+	const requests: string[] = [];
+	t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL) => {
+		requests.push(String(input));
+		return String(input).includes("/155,/")
+			? new Response(null, { status: 503 })
+			: new Response("Requests for scales in excess of 100% are not allowed.", {
+					status: 403,
+				});
+	});
+	const result = await processColorBatch({
+		catalog: f.catalog,
+		output: f.output,
+		allowDownload: true,
+		batchSize: 1,
+	});
+	assert.equal(requests.length, 1);
+	assert.match(requests[0], /\/full\/155,\/0\/default\.jpg$/);
+	assert.equal(result.cursor, 0);
+	assert.equal(result.skipped, 0);
+	assert.match(result.paused ?? "", /503/);
+});
+
+test("a size fallback still pauses on rate limits without recording a skip", async (t) => {
+	const f = await fixture(t);
+	let now = 0;
+	t.mock.method(Date, "now", () => (now += 1100));
+	const requests: string[] = [];
+	t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL) => {
+		requests.push(String(input));
+		return requests.length === 1
+			? new Response("Requests for scales in excess of 100% are not allowed.", {
+					status: 403,
+				})
+			: new Response(null, { status: 429, headers: { "retry-after": "120" } });
+	});
+	const result = await processColorBatch({
+		catalog: f.catalog,
+		output: f.output,
+		allowDownload: true,
+		batchSize: 1,
+	});
+	assert.equal(requests.length, 2);
+	assert.ok(requests[1].endsWith("/pct:50/0/default.jpg"));
+	assert.equal(result.cursor, 0);
+	assert.equal(result.skipped, 0);
+	assert.equal(result.retryAfterMs, 120000);
+	assert.match(result.paused ?? "", /429/);
+	assert.deepEqual(await readdir(join(f.output, "records")), []);
+});

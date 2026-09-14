@@ -6,11 +6,11 @@
 
 We start with the museum's artwork records, refresh them against the live catalog, and keep a reproducible list of eligible public-domain artworks. We analyze each available image into a compact color fingerprint and retain a small, exact pixel sample to check matches. The website searches these precomputed color records; a separate Neon database stores the palettes visitors choose to share.
 
-The phrase “art database” is convenient product language. The current art-search implementation is **versioned JSON plus sample files**, not a table full of paintings in Postgres. Original JPEGs are retained locally during the scan, not inserted into Neon or bundled with the current website release.
+The phrase “art database” is convenient product language. The art-search implementation is **versioned color tiles, metadata pages, and sample packs in R2**, not a table full of paintings in Postgres. Original JPEGs are retained locally, not inserted into Neon or bundled with the website release.
 
 ## Visual graph
 
-![Museum archive and live API merge into a frozen catalog, then image analysis produces signatures, canonical samples and grayscale tags. Audited data needs a separate release before the website can use it. Shared palettes go to Neon through a separate branch.](diagrams/data-pipeline.svg)
+![Museum archive and live API merge into a frozen catalog. Audited signatures and canonical samples are packaged into a separately approved R2 release. The browser loads relevant chunks through a read-only Worker; shared palettes go separately to Neon.](diagrams/data-pipeline.svg)
 
 [Open the full-size SVG](diagrams/data-pipeline.svg). The graph is an editable vector asset with accessible title/description, not a screenshot or a live progress display.
 
@@ -35,17 +35,17 @@ flowchart TD
   Sample --> Audit
   Tags --> Audit
   Originals --> Audit
-  Audit -. Separate approval and packaging required .-> Future[Future expanded runtime release]
-  Existing[Existing 2,500-artwork bounded build] --> Assets[Current versioned static index and raw samples]
-  Future -. Not automatic .-> Assets
-  Assets --> Match[Browser finds candidates and verifies every locked color]
+  Audit --> Release[Approved packaging: 59,025 indexed artworks; 31 skips]
+  Release --> Assets[Dedicated R2 bucket: v3 tiles, metadata and sample packs]
+  Assets --> Gateway[Read-only Worker; immutable assets and HTTP ranges]
+  Gateway --> Match[Browser loads relevant chunks and verifies every locked color]
   Match --> Palette[Selected artwork and editable workbench choices]
   Palette --> Exports[Browser exports and local recent history]
   Palette --> Save[Explicit share action: validated server request]
   Save --> Neon[Neon palettes table: UUID, colors, artwork ID, mode, count]
 ```
 
-Read the solid arrows as implemented data paths. Dashed arrows are a **future release boundary**, not evidence that the full scan is already in the app. Tone is an optional interpretation feature outside this database-building pipeline; it does not generate the index.
+The arrows describe implemented data paths, including the separately approved full-scan packaging and R2 release. Scanning alone never publishes automatically. Tone is an optional interpretation feature outside this database-building pipeline; it does not generate the index.
 
 ## 1. Establish a complete historical baseline
 
@@ -107,7 +107,7 @@ Reused originals must exist locally and match both the live image ID and source 
 
 The standalone batch command is offline by default. The explicitly approved full-scan runner enables downloads for eligible catalog entries not covered by reusable sources.
 
-The implemented download contract is sequential requests, conservative one-second spacing, 843px museum JPEGs, no redirects, a ten-second request timeout, and a 10 MiB streamed size cap. The size cap also applies when a content-length header is absent or inaccurate. Successful network responses must declare JPEG content and start with JPEG bytes.
+The implemented download contract is sequential requests, conservative one-second spacing, normally 843px museum JPEGs, no redirects, a ten-second request timeout, and a 10 MiB streamed size cap. Narrow originals use catalog dimensions for a bounded derivative; only an explicit enlargement-restriction 403 gets one half-native-size fallback. Both attempts retain pacing and validation. The size cap applies when content length is absent or inaccurate. Successful responses must declare JPEG content and start with JPEG bytes.
 
 HTTP 403/404 and invalid/decode/empty-image cases receive explicit skip receipts. Network interruptions, rate limits, and other server failures pause the pending item and retry with backoff through the runner. A 403 is a recorded delivery result, not proof of a particular legal or copyright explanation.
 
@@ -153,11 +153,13 @@ A batch with at least 20 records and more than 20% failures pauses the run for i
 
 ## 8. Keep staging separate from a runtime release
 
-The current app uses a separately built **2,500-artwork** version-2 release. Its earlier bounded corpus was selected across ten search categories, expanded by reusing sources, and verified before the runtime path was switched. Older 481- and 965-artwork asset sets remain available for rollback.
+The completed 2026-09-14 audit accounts for all **59,056 eligible records: 59,025 indexed and 31 skipped**. The approved packager validates receipt/catalog identity and canonical sample hashes, then emits a separate version-3 release. It preserves the exact audited pixels without another JPEG decode.
 
-The full scan writes per-artwork receipts and compressed `.rgba.gz` samples. The current runtime expects an aggregate `index.json`, matching `artworks.json`, and raw `.rgba` sample URLs. Completing the scan does not solve packaging, browser memory, query budgets, hosting size limits, accuracy review, or deployment approval.
+The dedicated `chromacollection-index` R2 bucket holds an immutable manifest, a compact artwork directory, gzip color tiles, paginated artwork metadata, and sample packs. A read-only Worker serves full small assets and exact sample byte ranges. The website retains only the release root/hash pointer. The roughly 3.29 GB release is never bundled into a browser download or the Vercel app.
 
-No automatic full-scan-to-runtime publisher exists. No full-scan records are being inserted into Neon. Originals are retained; removing them requires separate approval after appropriate verification and backup decisions.
+The browser loads relevant tiles, conservatively retrieves candidates, and strictly checks every lock against saved pixels. Per-query limits are 12 MiB downloaded bodies, 2,500 checks, and 30 seconds; a limit or missing data means incomplete, not no-match. Matching thresholds and whole-image semantics are unchanged. See [runtime contracts](color-index.md) and [publication/rollback](operations.md#release-and-rollback).
+
+Publication remains an explicit operator step: checksum-confirmed assets first, manifest last, tested app deployment afterward. Old bundled 481-, 965-, and 2,500-artwork releases remain untouched for their matching older app deployments. No full-scan records enter Neon. Originals are retained; removing them requires separate approval.
 
 ## Data dictionary and file contracts
 

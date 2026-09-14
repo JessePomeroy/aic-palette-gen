@@ -2,6 +2,8 @@
 
 `workbench-layout.mjs` checks viewport bounds, five/eight swatches, desktop drawers, mobile sheets, portrait selection, keyboard/backdrop dismissal, lock persistence, mode comparison, tone layout, share failure/retry, downloads, history, responsive transitions, image errors, and indexed-match/cancel outcomes. All museum, tone, persistence, and index responses are synthetic fixtures; it makes no database writes or paid-provider requests.
 
+Indexed matching uses the actual v3 packager through `tests/helpers/shard-fixture.ts`: the release pointer, compressed directory/tiles/metadata, and ranged sample responses are all fixtures. Public R2 behavior is verified separately during approved releases; this suite does not upload data or contact the bucket. Avoid running builds/route-server tests concurrently with browser checks against the same checkout, since Vite-generated files can reload the page mid-scenario.
+
 `workbench-quality.mjs` checks completed and in-flight saves across count, mode, regeneration, and comparison changes; readable accent buttons; and clipboard-denial/retry feedback in the workbench and shared palette. It mounts the actual shared route component with fixture props through Vite, so use the **dev server**, not a production preview, for this suite. Its API routes fail closed to prevent accidental database/provider calls.
 
 It also checks that desktop/mobile actions, locked controls and modal tools share the current artwork accent; dark/light palettes retain readable text and focus indicators; and artwork selection/history restoration update the theme without changing global page colors.

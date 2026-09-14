@@ -40,7 +40,7 @@ Tradeoff: fixed jobs do not automatically incorporate new museum records during 
 
 | Area | Current limit or caveat |
 |---|---|
-| Locked artwork search | Active local release contains 2,500 works; not the full 59,056-record catalog |
+| Locked artwork search | Full-scan release contains 59,025 works; 31 explicit skips from the frozen 59,056-record catalog |
 | Unlocked Random | Capped listing-position sampling; not a uniform full-collection random draw |
 | Search filters | Live discovery filters do not constrain Random matching or unlabeled “similarity” beyond their implemented path |
 | Color presence | Whole-image sample includes backgrounds, frames, and display cases |
@@ -48,7 +48,7 @@ Tradeoff: fixed jobs do not automatically incorporate new museum records during 
 | Image profiles | No automatic ICC normalization; network batch path skips embedded JPEG profiles |
 | Grayscale | Informational conservative tags; no automatic exclusion and no full semantic classification |
 | Full scan | Completion depends on an audited final report; metadata eligibility alone is not downloaded-image coverage |
-| Runtime scale | 2,500 candidate budget, 30-second UI deadline, browser-side aggregate index; not validated for the full scan corpus |
+| Runtime scale | On-demand R2 data; 12 MiB response-body budget, 2,500 checks, 30-second deadline; difficult queries can be incomplete |
 | Sharing | Anonymous public links; no account permissions, revocation UI, edit API, or deletion API |
 | History | Browser-local, capped at 24 entries, not a complete backup |
 | Abuse controls | Per-instance memory limits; not distributed quotas or authenticated access control |
@@ -64,12 +64,12 @@ Historical browser checks cover specific Chromium/WebKit scenarios and local fix
 
 Keep those distinctions in marketing, demonstrations, and release notes. Avoid claims such as “searches every artwork,” “perfect color matching,” “all data lives in Neon,” “fully offline website,” “private share links,” or “WCAG-certified” unless the implementation and evidence change to support them.
 
-## Next decisions after the approved scan
+## Decisions after the production release
 
 1. **Review completeness and failures.** Inspect the final audit, actual indexed count, unavailable-image reasons, duplicate samples, and source provenance. Decide whether a separate retry corpus is worthwhile; do not erase the original skip trail.
 2. **Validate human-facing accuracy.** Build a labeled query/artwork set spanning neutrals, warm paper, colored accents, frames, backgrounds, media, and different image profiles. Separate false accepts, false rejects, and unavailable data.
-3. **Choose full-corpus delivery/search architecture.** Measure the aggregate histogram and sample footprint, first-load cost, no-match work, and phone behavior. Options need evidence before selecting file sharding, an improved browser index, server-side retrieval, or alternative hosting.
-4. **Define publication and rollback.** Produce a coherent runtime artifact, choose cache/version policy, approve deployment, and retain an older compatible release.
+3. **Measure broader query performance.** R2 sharding, bounded browser retrieval and sample ranges are implemented and deployed. User phone feedback is positive; difficult combinations can still hit the byte/check/deadline limits. Any move to server-side search or changed acceptance needs separate evidence and approval.
+4. **Maintain publication and rollback.** Keep manifests and assets immutable, preserve compatible older deployments, and use the documented upload/deployment workflow. The first full release is complete; future refreshes are deliberate releases, not automatic changes to the frozen catalog.
 5. **Review abuse controls and privacy.** Decide deployment-wide request/spend limits and an accurate public data-handling explanation. No paid upgrade or new external policy is implied by the current local work.
 6. **Decide retention separately.** Original-image removal is not a scan step. Confirm successful verification, reproducibility needs, backups, and exact cleanup targets before any approved deletion.
 

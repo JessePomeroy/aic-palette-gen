@@ -3,10 +3,7 @@
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import {
-	analyzeColorSignature,
-	colorSampleDigest,
-} from "../../src/lib/colors/color-index.ts";
+import { shardFixture } from "../helpers/shard-fixture.ts";
 
 const playwright = await import(process.env.PLAYWRIGHT_MODULE || "playwright");
 const engine = process.argv[2] || "chromium";
@@ -101,6 +98,7 @@ async function session(
 		current: artwork(),
 		randomCandidates: 0,
 	};
+	let indexFixture;
 	await page.route("**/*", async (route) => {
 		const url = new URL(route.request().url());
 		if (url.hostname === "api.artic.edu") {
@@ -207,45 +205,30 @@ async function session(
 						},
 			);
 		}
-		if (url.pathname.startsWith("/color-index/")) {
+		if (
+			url.pathname.startsWith("/color-index/") ||
+			url.hostname === "index.test"
+		) {
 			if (state.waitForIndex) await state.waitForIndex;
 			if (state.indexUnavailable)
 				return route.fulfill({
 					status: 503,
 					body: "Fixture index unavailable",
 				});
-			const hex = state.lockHex;
-			const pixels = Uint8Array.from([
-				parseInt(hex.slice(1, 3), 16),
-				parseInt(hex.slice(3, 5), 16),
-				parseInt(hex.slice(5), 16),
-				255,
-			]);
-			const sha256 = await colorSampleDigest(pixels);
-			if (url.pathname.endsWith("/artworks.json"))
-				return route.fulfill({
-					json: { version: 1, artworks: [artwork(202)] },
-				});
-			if (url.pathname.endsWith("/index.json"))
-				return route.fulfill({
-					json: {
-						version: 2,
-						generatedAt: "2026-09-13T00:00:00Z",
-						corpus: "Browser layout fixture",
-						entries: [
-							{
-								artworkId: 202,
-								imageId: artwork(202).image_id,
-								sourceUpdatedAt: null,
-								signature: analyzeColorSignature(pixels),
-								sample: { width: 1, height: 1, sha256 },
-							},
-						],
-					},
-				});
+			indexFixture ??= shardFixture([[state.lockHex]], [artwork(202)]);
+			const fixture = await indexFixture;
+			const response = await fixture.fetcher(
+				url.pathname === "/color-index/release.json" ? url.pathname : url.href,
+				{ headers: route.request().headers() },
+			);
 			return route.fulfill({
-				contentType: "application/octet-stream",
-				body: Buffer.from(pixels),
+				status: response.status,
+				headers: {
+					...Object.fromEntries(response.headers),
+					"access-control-allow-origin": "*",
+					"access-control-expose-headers": "Content-Range",
+				},
+				body: Buffer.from(await response.arrayBuffer()),
 			});
 		}
 		if (url.origin !== new URL(base).origin) return route.abort();

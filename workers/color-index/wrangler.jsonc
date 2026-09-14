@@ -1,0 +1,10 @@
+{
+	"name": "chromacollection-index",
+	"main": "index.mjs",
+	"account_id": "18829b4109eeb19a0f0d69089a5caa14",
+	"compatibility_date": "2026-09-01",
+	"workers_dev": true,
+	"r2_buckets": [
+		{ "binding": "INDEX_BUCKET", "bucket_name": "chromacollection-index" }
+	]
+}

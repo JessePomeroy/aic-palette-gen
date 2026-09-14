@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1480" height="1560" viewBox="0 0 1480 1560" role="img" aria-labelledby="title desc">
   <title id="title">How ChromaCollection builds and uses its artwork database</title>
-  <desc id="desc">A historical museum archive and a live API refresh produce a frozen 59,056-artwork catalog. Paced image processing creates Oklab color fingerprints, exact verification samples, and exploratory grayscale tags. Originals are retained and results are audited. A dashed, separately approved release path leads to future website assets; the current app still uses its existing 2,500-artwork index. Browser palettes can be exported or remembered locally. Explicitly shared palettes, not museum images, go to a separate Neon database.</desc>
+  <desc id="desc">A historical museum archive and a live API refresh produce a frozen 59,056-artwork catalog. Paced image processing creates Oklab color fingerprints, exact verification samples, and exploratory grayscale tags. The completed audit has 59,025 indexed records and 31 explicit skips. Approved packaging publishes immutable version-3 assets in a separate R2 bucket, served through a read-only Worker. The browser loads only relevant chunks within query limits. App deployment remains separate. Originals are retained. Explicitly shared palettes, not museum images, go to Neon.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#54706a"/></marker>
     <marker id="future" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0L10 5L0 10Z" fill="#956830"/></marker>
@@ -71,14 +71,14 @@
   <path class="edge" d="M735 1170V1205H560V1240"/>
   <rect x="180" y="1240" width="550" height="130" rx="15" class="stage"/>
   <text x="205" y="1278" class="heading">Receipts, pilot gate and final audit</text>
-  <text x="205" y="1312" class="body">Pilot: 293 indexed / 300 attempted · integrity passed</text>
-  <text x="205" y="1342" class="small">Full-scan completion requires every record accounted for</text>
+  <text x="205" y="1312" class="body">Final: 59,025 indexed · 31 explicit skips</text>
+  <text x="205" y="1342" class="small">All 59,056 records accounted for · integrity audit passed</text>
 
   <rect x="965" y="235" width="420" height="140" rx="15" class="current"/>
-  <text x="990" y="273" class="heading">Current local app: 2,500 works</text>
-  <text x="990" y="308" class="body">Existing bounded build, already integrated</text>
-  <text x="990" y="337" class="small">Versioned metadata + index + raw RGBA samples</text>
-  <text x="990" y="361" class="small">Not automatically replaced by the full scan</text>
+  <text x="990" y="273" class="heading">R2 release: 59,025 works</text>
+  <text x="990" y="308" class="body">Separate bucket · read-only Worker</text>
+  <text x="990" y="337" class="small">Color tiles + metadata pages + sample ranges</text>
+  <text x="990" y="361" class="small">On-demand data; Vercel hosts the app</text>
   <path class="edge" d="M1175 375V440"/>
   <rect x="965" y="440" width="420" height="135" rx="15" class="current"/>
   <text x="990" y="478" class="heading">Find artwork with locked colors</text>
@@ -106,13 +106,13 @@
   <text x="990" y="1133" class="small">No original-image warehouse or color-index table</text>
   <text x="990" y="1158" class="small">Anyone with a share link can view that palette</text>
 
-  <path class="dashed" d="M730 1305H815"/>
-  <rect x="815" y="1240" width="570" height="130" rx="15" class="futurebox"/>
-  <text x="840" y="1278" class="heading">Future expanded release — separate approval</text>
-  <text x="840" y="1312" class="body">Package assets · validate scale/accuracy · approve deployment</text>
-  <text x="840" y="1342" class="small">Full scan output is local staging, not an automatic website update</text>
-  <path class="dashed" d="M1385 1305H1430V305H1385"/>
+  <path class="edge" d="M730 1305H815"/>
+  <rect x="815" y="1240" width="570" height="130" rx="15" class="stage"/>
+  <text x="840" y="1278" class="heading">Approved version-3 packaging and publication</text>
+  <text x="840" y="1312" class="body">Preserve canonical pixels · verify uploads · manifest last</text>
+  <text x="840" y="1342" class="small">App rollout is separate; keep earlier releases and all originals</text>
+  <path class="edge" d="M1385 1305H1430V305H1385"/>
   <text x="50" y="1440" class="heading">Full scan ≠ published app. Neon ≠ artwork-image storage.</text>
-  <text x="50" y="1476" class="subtitle">Solid arrows: implemented flows. Dashed arrows: release work that remains separate.</text>
+  <text x="50" y="1476" class="subtitle">Search limits: 12 MiB downloaded data · 2,500 checks · 30 seconds · incomplete is not no-match.</text>
   <text x="50" y="1513" class="small">For current progress, read the scan's checkpoint and status files. Originals are retained; cleanup requires separate approval.</text>
 </svg>

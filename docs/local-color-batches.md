@@ -4,7 +4,7 @@
 
 ## Run and resume
 
-```bash
+```fish
 npm run colors:batch -- \
   --catalog /absolute/path/artworks.json \
   --reuse-manifest /absolute/path/manifest.json \
@@ -16,7 +16,7 @@ The output's parent must already exist. Repeat the command to resume. Each invoc
 
 No network requests are made by default. A missing local source pauses the batch. For catalog entries absent from the reuse manifest, explicitly add `--allow-download` to fetch 843px museum JPEGs into the job's `originals/`. Existing source paths are reused, not copied or deleted. Missing files explicitly listed in the reuse manifest must be restored rather than silently replaced.
 
-Downloads are sequential with at least one second between request starts within an invocation, a ten-second timeout, no redirects, and a 10 MiB streamed body limit. Rate limits, server errors, and network interruption pause without advancing the pending item or automatically retrying. HTTP 403/404, invalid image responses, decoding failures, and embedded JPEG ICC profiles become explicit skip records. ICC normalization is not implemented. Reused local images must satisfy the manifest's sRGB contract.
+Downloads are sequential with at least one second between request starts within an invocation, a ten-second timeout, no redirects, and a 10 MiB streamed body limit. Narrow originals use catalog dimensions to request a non-enlarged derivative. Only an explicit enlargement-restriction HTTP 403 receives one half-native-size fallback, with the same pacing and validation; other access denials are not retried. Rate limits, server errors, and network interruption pause without advancing the pending item. Remaining HTTP 403/404, invalid image responses, decoding failures, and embedded JPEG ICC profiles become explicit skips. ICC normalization is not implemented. Reused local images must satisfy the manifest's sRGB contract.
 
 ## Verify
 
@@ -29,11 +29,11 @@ Files are committed by same-directory atomic rename. A checkpoint advances only 
 - `plan.json`: immutable input fingerprint and recipe.
 - `checkpoint.json`: committed cursor and indexed/skipped counts.
 - `records/<artwork-id>.json`: normalized metadata plus either an explicit skip reason or signature, sample descriptor, colorfulness statistics, and source provenance.
-- `samples/<sha256>.rgba.gz`: losslessly compressed canonical pixels, deduplicated by raw pixel hash. These are staging assets, not the runtime's `.rgba` files.
+- `samples/<sha256>.rgba.gz`: losslessly compressed canonical pixels, deduplicated by raw pixel hash. The v3 packager preserves these members in runtime sample packs; staging paths are not public URLs.
 - `originals/`: downloaded originals retained until separately approved cleanup.
 
 Colorfulness version 1 ignores alpha below 128 and measures Oklab chroma on canonical pixels. `grayscale` requires maximum chroma ≤ 0.005. Otherwise, less than 1% of pixels at chroma ≥ 0.02 yields `near-neutral`; the remainder is `colorful`. Even a tiny colorful accent prevents a grayscale tag. These thresholds are exploratory, not visually calibrated. Tags never exclude artworks or change app matching.
 
 ## Pilot and remaining scope
 
-The initial pilot processed 25 already-cached museum images in two invocations (10 then 15), without new downloads. A later [live catalog refresh and approved full scan](full-color-scan.md) now provides the larger workflow; the existing category-search downloader is still not a full-collection enumerator. Full scanning was subsequently approved, but runtime publication, database migration, and original-image cleanup remain separate decisions. [Operations](operations.md#scan-monitoring-and-restarts) covers the persistent supervisor.
+The initial pilot processed 25 already-cached museum images in two invocations (10 then 15), without new downloads. The later [full scan](full-color-scan.md) completed with 59,025 indexed artworks and 31 skips. Its separately approved R2 release is live; the batch command remains staging-only. The category-search downloader is not a full-collection enumerator. Database migration and original-image cleanup are not authorized by running a batch. [Operations](operations.md#scan-monitoring-and-restarts) covers the supervisor.
