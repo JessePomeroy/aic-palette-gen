@@ -5,14 +5,17 @@ import { readableText } from "../colors/workbench";
 export async function exportArtworkCard(
 	artwork: Artwork,
 	colors: ExtractedColor[],
+	signal?: AbortSignal,
 ): Promise<Blob> {
 	if (!artwork.image_id || !colors.length)
 		throw new Error("Choose an artwork and palette first.");
 	const blob = await fetchImageBlob(
 		getImageUrl(artwork.image_id, "large", artwork.thumbnail?.width),
+		signal,
 	);
 	const image = await createImageBitmap(blob);
 	try {
+		signal?.throwIfAborted();
 		const canvas = document.createElement("canvas");
 		canvas.width = 1200;
 		canvas.height = 1440;

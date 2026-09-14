@@ -10,6 +10,8 @@ It also checks that desktop/mobile actions, locked controls and modal tools shar
 
 `palette-image-size.mjs` replays the museum's no-enlargement responses for narrow artworks. It checks initial load, refresh, count changes, mode comparison, and both Classic/Card downloads on desktop/mobile without contacting the museum.
 
+Classic preview checks compare its pixels with the downloaded PNG and verify that switching formats, loading, and retrying a failed preview keep the Save controls in place at desktop and mobile widths.
+
 Start an isolated local dev server with empty provider/database settings, record its PID, and use an installed Playwright module/browser pair. Playwright is an optional verification tool, not a new production dependency or part of the default Node test suite.
 
 `sheet-dismiss.mjs` checks pull-down dismissal across all five mobile tool sheets, short/cancelled pulls, control exclusions, scrolling, focus restoration, resizing, and reduced motion. Chromium uses native CDP touch input, including actual scroll checks. WebKit replays touch events through the real DOM handlers because its automation API does not provide native swipes; this is not a physical iPhone gesture test.
