@@ -16,7 +16,14 @@ test("index delivery is read-only, range-bounded, cache-separated and limited to
 		configurable: true,
 		value: {
 			open: async () => ({
-				match: async (key: Request) => cache.get(key.url)?.clone(),
+				match: async (key: Request) => {
+					const saved = cache.get(key.url);
+					return saved
+						? new Response(await saved.clone().arrayBuffer(), {
+								headers: saved.headers,
+							})
+						: undefined;
+				},
 				put: async (key: Request, value: Response) => {
 					cache.set(
 						key.url,
@@ -40,7 +47,13 @@ test("index delivery is read-only, range-bounded, cache-separated and limited to
 					? data.slice(range.offset, range.offset + range.length)
 					: data;
 				return {
-					size: data.length,
+					size: key.endsWith("report.json")
+						? 17 * 1024 * 1024
+						: key.endsWith("index.json") || key.includes("oversize")
+							? 12 * 1024 * 1024
+							: key.endsWith(`${"b".repeat(64)}.rgba`)
+								? 160001
+								: data.length,
 					httpEtag: '"fixture"',
 					body: new Blob([bytes]).stream(),
 				};
@@ -96,5 +109,46 @@ test("index delivery is read-only, range-bounded, cache-separated and limited to
 		(await get("/v3/release/manifest.json", { method: "OPTIONS" })).status,
 		204,
 	);
+	const legacy = "/v2/expanded-2500-20260913";
+	const sample = `${legacy}/samples/${"a".repeat(64)}.rgba`;
+	for (const path of [
+		"/v2/unknown/index.json",
+		`${legacy}/original.jpg`,
+		`${legacy}/samples/not-a-hash.rgba`,
+		`${legacy}/index.json?raw=1`,
+	])
+		assert.equal((await get(path)).status, 404);
+	assert.equal((await get(sample, { method: "POST" })).status, 405);
+	assert.equal(
+		(await get(sample, { headers: { Range: "bytes=0-1" } })).status,
+		416,
+	);
+	assert.equal(
+		(await get(sample, { method: "OPTIONS" })).headers.get(
+			"access-control-allow-origin",
+		),
+		"*",
+	);
+	const rgba = await get(sample);
+	assert.equal(rgba.status, 200);
+	assert.equal(rgba.headers.get("content-type"), "application/octet-stream");
+	assert.match(
+		rgba.headers.get("cache-control") ?? "",
+		/immutable.*no-transform/,
+	);
+	assert.equal(await rgba.text(), "0123456789");
+	await Promise.all(pending);
+	const head = await get(sample, { method: "HEAD" });
+	assert.equal(head.headers.get("x-index-cache"), "HIT");
+	assert.equal(head.headers.get("content-length"), "10");
+	assert.equal(await head.text(), "");
+	// The actual legacy index is larger than v3's 8 MiB JSON limit.
+	assert.equal((await get(`${legacy}/index.json`)).status, 200);
+	assert.equal((await get(`${legacy}/report.json`)).status, 503);
+	assert.equal(
+		(await get(`${legacy}/samples/${"b".repeat(64)}.rgba`)).status,
+		503,
+	);
+	assert.equal((await get("/v3/oversize/manifest.json")).status, 503);
 	await Promise.all(pending);
 });

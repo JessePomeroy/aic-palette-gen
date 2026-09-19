@@ -20,6 +20,7 @@ export async function shardFixture(
 		["#bd9751"],
 	],
 	artworks?: readonly Artwork[],
+	dimensions?: readonly { width: number; height: number }[],
 ) {
 	const root = "https://index.test/v3/fixture",
 		files = new Map<string, Uint8Array>();
@@ -59,8 +60,8 @@ export async function shardFixture(
 				sourceUpdatedAt: null,
 				signature: analyzeColorSignature(pixels),
 				sample: {
-					width: rows[i].length,
-					height: 1,
+					width: dimensions?.[i].width ?? rows[i].length,
+					height: dimensions?.[i].height ?? 1,
 					sha256: await colorSampleDigest(pixels),
 				},
 			},

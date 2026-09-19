@@ -297,6 +297,29 @@ export function createIndexedSearch(fetcher: typeof fetch = fetch) {
 		return pixels;
 	}
 	return {
+		/** Look up the exact saved pixels without running a color search. */
+		async sampleForArtwork(
+			artwork: Pick<Artwork, "id" | "image_id">,
+			signal: AbortSignal,
+		) {
+			const { id, image_id: imageId } = artwork;
+			signal.throwIfAborted();
+			if (!Number.isSafeInteger(id) || id <= 0 || !imageId) return null;
+			const budget: DownloadBudget = { remaining: MAX_DOWNLOAD_BYTES };
+			const data = await loadCatalog(signal, budget);
+			const ordinal = data.directory.ids.indexOf(id);
+			if (ordinal < 0) return null;
+			const row = await artworkAt(ordinal, data, signal, budget);
+			// Museum metadata can change independently of this immutable release.
+			if (row.artwork.image_id !== imageId) return null;
+			const pixels = await pixelsFor(row, data, signal, budget);
+			signal.throwIfAborted();
+			return {
+				width: row.sample.width,
+				height: row.sample.height,
+				pixels: Uint8Array.from(pixels),
+			};
+		},
 		async search(
 			hexes: readonly string[],
 			options: {
@@ -459,3 +482,7 @@ export function createIndexedSearch(fetcher: typeof fetch = fetch) {
 		},
 	};
 }
+
+// Browser callers share only bounded, verified public assets—not palettes or locks.
+// No network or DOM work runs during module evaluation or server rendering.
+export const artworkIndex = createIndexedSearch((...args) => fetch(...args));

@@ -1,27 +1,24 @@
 <script lang="ts">
-    import { type Artwork, getArtworkUrl, getImageUrl } from '$lib/api/artic';
+    import { type Artwork, getArtworkUrl } from '$lib/api/artic';
     import type { ExtractedColor } from '$lib/colors/extraction';
+    import ArtworkImage from './ArtworkImage.svelte';
     import './artwork-card.css';
 
-    let { artwork, colors, imageUrl }: {
+    let { artwork, colors, imageUrl, imagePreview = false }: {
         artwork: Artwork;
         colors: ExtractedColor[];
         imageUrl?: string;
+        imagePreview?: boolean;
     } = $props();
 
     const accents = $derived([...colors].sort((a, b) => b.hsl.s - a.hsl.s));
     const frame = $derived(colors[0]?.hex || '#829caf');
     const trim = $derived(accents[0]?.hex || '#b6a15e');
-    const source = $derived(imageUrl || (artwork.image_id ? getImageUrl(artwork.image_id, 'large', artwork.thumbnail?.width) : ''));
+    let loadedPreview = $state(false);
+    const showPreview = $derived(imageUrl ? imagePreview : loadedPreview);
     const titleSize = $derived(artwork.title.length > 100 ? '4.6cqi' : artwork.title.length > 50 ? '6.1cqi' : '9cqi');
     const artist = $derived(artwork.artist_title || artwork.artist_display || 'Artist unknown');
 
-    function imageFailed(event: Event) {
-        const image = event.currentTarget;
-        if (image instanceof HTMLImageElement && image.src.startsWith('https://www.artic.edu/iiif/')) {
-            image.src = `/api/image?${new URLSearchParams({ url: image.src })}`;
-        }
-    }
 </script>
 
 <div class="artwork-card-viewport">
@@ -40,7 +37,7 @@
         </div>
 
         <figure class="artwork-card-image-frame">
-            <img class="artwork-card-image" src={source} alt={artwork.thumbnail?.alt_text || artwork.title} onerror={imageFailed} />
+            <ArtworkImage {artwork} layout="card" src={imageUrl} preview={imagePreview} notice={false} imageClass="artwork-card-image" onpreview={value => loadedPreview = value} />
         </figure>
 
         <section class="artwork-card-palette-panel" aria-label="Palette and artwork credit">
@@ -54,6 +51,7 @@
                 {/each}
             </ol>
             <footer class="artwork-card-footer">
+                {#if showPreview}<p class="artwork-card-preview-note">Low-resolution preview · Museum image unavailable</p>{/if}
                 <div class="artwork-card-collector">
                     <span>Chroma Collection</span>
                     <span>AIC · {artwork.id}</span>

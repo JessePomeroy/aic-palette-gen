@@ -32,11 +32,19 @@ The design reverses that search: analyze selected images once, retrieve possible
 
 ### Version-2 release and integration (historical)
 
-`static/color-index/expanded-2500-20260913/` contains the historical version-2 index, matching artwork metadata, immutable RGBA samples and build report. It reuses 965 source images and adds 1,535 successfully downloaded images. The downloader attempted 1,620 new images from a 3,805-candidate pool, replacing 85 excluded inputs: 81 HTTP 403 responses, one HTTP 404 and three embedded ICC profiles requiring normalization. All 2,500 retained images decoded/indexed and passed saved-sample integrity checks. Every reused sample hash is unchanged. Original 843px JPEGs remain outside the repository; untagged JPEGs are explicitly interpreted as sRGB.
+`archives/color-index/expanded-2500-20260913/` contains the historical version-2 index, matching artwork metadata, immutable RGBA samples and build report. It reuses 965 source images and adds 1,535 successfully downloaded images. The downloader attempted 1,620 new images from a 3,805-candidate pool, replacing 85 excluded inputs: 81 HTTP 403 responses, one HTTP 404 and three embedded ICC profiles requiring normalization. All 2,500 retained images decoded/indexed and passed saved-sample integrity checks. Every reused sample hash is unchanged. Original 843px JPEGs remain outside the repository; untagged JPEGs are explicitly interpreted as sRGB.
 
 Both `starter-20260912` (481 artworks) and `expanded-20260912` (965 artworks) are retained unchanged for rollback and cached older clients. The initial release had 481 successful images from 500 selections across ten search categories; the second added 484 usable images from 519 new selections.
 
-`createIndexedSearch` owns a workbench-local catalog and up to 32 verified cached samples. It validates index/metadata identity, applies `LOCKED_COLOR_MATCH_POLICY`, excludes the current artwork, and prefers unseen artwork IDs from browser history. Both index loading and sample verification honor cancellation; late completions cannot replace newer selections. Invalid/unavailable index data never triggers a museum-image scan. Full display images and palette extraction still load the selected image separately.
+All three historical releases now live locally under `archives/color-index/`,
+outside deployable static assets. Their old public URL prefixes remain a
+compatibility contract. The [ordered R2/Worker migration](vercel-footprint.md)
+was deployed September 16: all three prefixes now redirect to byte-verified R2
+copies, while both protected older deployments remain intact.
+
+`createIndexedSearch` owns a catalog and up to 32 verified cached samples. Its browser instance shares those bounded public caches between matching and preview lookup; user locks and palettes remain local to each request/workbench. Matching validates index/metadata identity, applies `LOCKED_COLOR_MATCH_POLICY`, excludes the current artwork, and prefers unseen artwork IDs from browser history. Both index loading and sample verification honor cancellation; late completions cannot replace newer selections. Invalid/unavailable index data never triggers a museum-image scan.
+
+`sampleForArtwork` uses the directory, one metadata page, and a verified sample range to recover the exact saved pixels for the same artwork/image identity without downloading color tiles. Display and palette generation still prefer the selected museum image, but can use this sample when both museum and proxy image loading fail. Film styling is a separate presentation step and never modifies the canonical matching pixels or the raw palette/Tone input.
 
 The UI displays index size and distinguishes:
 

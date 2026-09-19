@@ -1,6 +1,8 @@
-import { type Artwork, getArtworkUrl, getImageUrl } from "../api/artic";
-import { type ExtractedColor, fetchImageBlob } from "../colors/extraction";
+import { type Artwork, getArtworkUrl } from "../api/artic";
+import type { ExtractedColor } from "../colors/extraction";
 import { readableText } from "../colors/workbench";
+import { loadArtworkImage } from "../images/artwork-image";
+import { presentArtworkImage } from "../images/preview-treatment";
 
 export async function exportArtworkCard(
 	artwork: Artwork,
@@ -9,10 +11,8 @@ export async function exportArtworkCard(
 ): Promise<Blob> {
 	if (!artwork.image_id || !colors.length)
 		throw new Error("Choose an artwork and palette first.");
-	const blob = await fetchImageBlob(
-		getImageUrl(artwork.image_id, "large", artwork.thumbnail?.width),
-		signal,
-	);
+	const source = await loadArtworkImage(artwork, "large", signal);
+	const blob = await presentArtworkImage(source, signal);
 	const image = await createImageBitmap(blob);
 	try {
 		signal?.throwIfAborted();
@@ -36,6 +36,14 @@ export async function exportArtworkCard(
 			width,
 			height,
 		);
+		if (source.preview) {
+			ctx.font = "16px system-ui";
+			ctx.fillText(
+				"Low-resolution preview · Museum image unavailable",
+				64,
+				986,
+			);
+		}
 		const fitText = (text: string, y: number, size: number) => {
 			ctx.font = `${size}px system-ui`;
 			let fitted = text.replace(/\s+/g, " ").trim();
