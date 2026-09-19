@@ -41,8 +41,8 @@
     import ModeComparison, { type PaletteVariant } from '$lib/components/ModeComparison.svelte';
 
     type WorkbenchPanel = 'search' | 'palette' | 'history' | 'save' | 'artwork';
-    const panelTitles = { search: 'Find artwork', palette: 'Palette tools', history: 'Recent palettes', save: 'Save & share', artwork: 'About this artwork' };
-    const toolPanels = [{ id: 'search', label: 'Search' }, { id: 'palette', label: 'Palette' }, { id: 'history', label: 'History' }, { id: 'save', label: 'Save & share' }] as const;
+    const panelTitles = { search: 'Find artwork', palette: 'Advanced palette tools', history: 'Recent palettes', save: 'Save & share', artwork: 'About this artwork' };
+    const toolPanels = [{ id: 'search', label: 'Search' }, { id: 'palette', label: 'Palette tools' }, { id: 'history', label: 'History' }, { id: 'save', label: 'Save & share' }] as const;
     let mobile = $state(false);
     let activePanel = $state<WorkbenchPanel>('search');
     let toolDialog = $state<HTMLDialogElement>();
@@ -119,6 +119,8 @@
     let aiLoading = $state(false);
     let copiedHex = $state("");
     let copyStatus = $state("");
+    let copyRequest = 0;
+    let copyTimer: number | undefined;
     let paletteError = $state("");
     let paletteLoading = $state(false);
     let artworkRequest = 0;
@@ -174,7 +176,11 @@
         catch { searchHistoryStatus = 'Search history is available for this session only.'; }
         await loadRandom();
     });
-    onDestroy(() => matchController?.abort());
+    onDestroy(() => {
+        matchController?.abort();
+        ++copyRequest;
+        clearTimeout(copyTimer);
+    });
 
     function cancelMatch() {
         ++artworkRequest;
@@ -528,13 +534,19 @@
     // ── user actions ──
 
     async function copyColor(hex: string) {
+        const request = ++copyRequest;
+        clearTimeout(copyTimer);
         copiedHex = "";
         copyStatus = "";
         try {
             await navigator.clipboard.writeText(hex);
+            if (request !== copyRequest) return;
             copiedHex = hex;
-            setTimeout(() => (copiedHex = ""), 1500);
-        } catch { copyStatus = `Clipboard unavailable. Select and copy ${hex}.`; }
+            copyStatus = `Copied ${hex}.`;
+            copyTimer = window.setTimeout(() => { copiedHex = ''; copyStatus = ''; }, 3000);
+        } catch {
+            if (request === copyRequest) copyStatus = `Clipboard unavailable. Select and copy ${hex}.`;
+        }
     }
 
     async function handleShare() {
@@ -925,19 +937,8 @@
                     {#if matching}<button class="desktop-cancel" onclick={cancelMatch}>Cancel</button>{/if}
                 </div>
             </div>
-            <div class="desktop-swatches" style={`--swatch-count: ${Math.max(colors.length, 5)}`}>
-                {#each colors as color, i}
-                    <div class="desktop-swatch">
-                        <button class="desktop-color" style={`background: ${color.hex}; color: ${readableText(color.hex)}`} aria-label={`Copy ${color.hex}`} title={color.name || color.hex} onclick={() => copyColor(color.hex)}>
-                            <span>{copiedHex === color.hex ? 'Copied' : color.hex}</span>
-                        </button>
-                        <button class="desktop-lock" class:locked={Boolean(locks[i])} aria-label={`${locks[i] ? 'Unlock' : 'Lock'} color ${i + 1} (${color.hex})`} aria-pressed={Boolean(locks[i])} disabled={busy} onclick={() => toggleLock(i)}>{locks[i] ? 'Locked' : 'Lock'}</button>
-                    </div>
-                {:else}
-                    <p class="desktop-palette-empty">{busy ? 'Your palette is on its way…' : 'Choose an artwork to find its colors.'}</p>
-                {/each}
-            </div>
-            <p class="desktop-palette-hint" role="status" style="user-select: text;">{copyStatus || (locks.some(Boolean) ? `${locks.filter(Boolean).length} locked · Random searches ${indexedCount ? `${indexedCount.toLocaleString()} indexed artworks` : 'the artwork index'} for every locked color.` : 'Click a swatch to copy. Lock colors to guide the next artwork.')}</p>
+            <PaletteEditor layout="desktop" showContrast={false} {colors} {locks} {busy} {copiedHex} oncopy={copyColor} onlock={toggleLock} />
+            <p class="desktop-palette-hint" role="status" aria-live="polite" aria-atomic="true" style="user-select: text;">{(!panelOpen && copyStatus) || (locks.some(Boolean) ? `${locks.filter(Boolean).length} locked · Random searches ${indexedCount ? `${indexedCount.toLocaleString()} indexed artworks` : 'the artwork index'} for every locked color.` : 'Click a color to copy its hex. Use Lock to keep its slot.')}</p>
         </section>
     </main>
 {/snippet}
@@ -977,7 +978,6 @@
 
         <section class="mobile-palette" aria-label="Your palette">
             <div class="mobile-palette-settings">
-                <span title={locks.some(Boolean) ? 'Locked-color search uses a public-domain subset of the collection.' : undefined}>{locks.some(Boolean) ? indexedCount ? `${indexedCount} indexed` : 'Index search' : 'Tap to lock'}</span>
                 <select aria-label="Number of colors" bind:value={colorCount} onchange={countChanged} disabled={busy}>
                     {#each [5, 6, 7, 8] as count}<option value={count} disabled={count < minimumCount}>{count} colors</option>{/each}
                 </select>
@@ -986,17 +986,10 @@
                     <option value="vibrant">vibrant</option>
                     <option value="ai">tone</option>
                 </select>
+                <button class="mobile-regenerate" onclick={regeneratePalette} disabled={busy || !colors.length || locks.filter(Boolean).length === colors.length}>Regenerate unlocked</button>
             </div>
-            <div class="mobile-swatches" class:two-rows={colors.length > 6} style={`--swatch-count: ${Math.max(colors.length, 5)}`}>
-                {#each colors as color, i}
-                    <button class="mobile-swatch" style={`background: ${color.hex}; color: ${readableText(color.hex)}`} aria-label={`${locks[i] ? 'Unlock' : 'Lock'} color ${i + 1} (${color.hex})`} aria-pressed={Boolean(locks[i])} disabled={busy} onclick={() => toggleLock(i)}>
-                        <span class="mobile-hex">{color.hex}</span>
-                        <span class="mobile-lock">{locks[i] ? 'Locked' : 'Lock'}</span>
-                    </button>
-                {:else}
-                    <p class="mobile-palette-empty">{busy ? 'Your palette is on its way…' : 'Choose an artwork to find its colors.'}</p>
-                {/each}
-            </div>
+            <PaletteEditor layout="mobile" showContrast={false} {colors} {locks} {busy} {copiedHex} oncopy={copyColor} onlock={toggleLock} />
+            <p class="mobile-palette-hint" role="status" aria-live="polite" aria-atomic="true">{(!panelOpen && copyStatus) || (locks.some(Boolean) ? `${locks.filter(Boolean).length} locked · Random searches ${indexedCount ? `${indexedCount.toLocaleString()} indexed artworks` : 'the artwork index'}.` : 'Tap a color to copy. Use Lock to keep its slot.')}</p>
         </section>
 
         <div class="mobile-roll">
@@ -1005,7 +998,7 @@
         </div>
         <nav class="mobile-nav" aria-label="Workbench tools">
             <button onclick={() => openPanel('search')}>Search</button>
-            <button onclick={() => openPanel('palette')}>Palette</button>
+            <button onclick={() => openPanel('palette')}>Palette tools</button>
             <button onclick={() => openPanel('history')}>History</button>
             <button onclick={() => openPanel('save')} disabled={!colors.length}>Save</button>
         </nav>
@@ -1025,13 +1018,16 @@
             {#if activePanel === 'search'}
                 {@render discoveryPanel()}
             {:else if activePanel === 'palette'}
+                <h3 class="text-sm mb-3">Current palette</h3>
+                <p class="text-xs mb-4 opacity-70">Copy, lock, and regenerate here or directly from the main palette.</p>
                 {@render controlsPanel()}
-                {#if copyStatus}<p role="status" class="mb-4 text-sm" style="user-select: text;">{copyStatus}</p>{/if}
                 {#if paletteError}<p role="status" class="mb-4 text-sm">{paletteError}</p>{/if}
                 {#if aiDescription}<p class="mb-4 text-sm">{aiDescription}</p>{/if}
                 {#if colors.length}
                     <PaletteEditor showContrast={false} {colors} {locks} {busy} {copiedHex} oncopy={copyColor} onlock={toggleLock} />
                 {/if}
+                <h3 class="advanced-palette-heading">Advanced tools</h3>
+                <p class="text-xs opacity-70">Compare extraction modes or check text contrast without changing your palette until you apply a result.</p>
                 <ModeComparison expanded {variants} {busy} error={comparisonError} oncompare={() => compareModes()} ontone={() => compareModes(true)} onapply={useVariant} />
                 {#if colors.length}
                     <ContrastChecker expanded swatchPicker {colors} oncopy={copyColor} />
@@ -1045,5 +1041,6 @@
                 {@render exportPanel()}
             {/if}
         </div>
+        <p class="workbench-copy-status" role="status" aria-live="polite" aria-atomic="true">{panelOpen ? copyStatus : ''}</p>
     </dialog>
 </div>

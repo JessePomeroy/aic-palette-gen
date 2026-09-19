@@ -401,7 +401,7 @@ try {
 			.isDisabled(),
 		true,
 	);
-	dialog = await openTool(page, "Palette");
+	dialog = await openTool(page, "Palette tools");
 	await dialog
 		.getByRole("button", { name: "Use vibrant", exact: true })
 		.waitFor();
@@ -586,7 +586,7 @@ try {
 		"Search",
 		"Animated close should restore focus",
 	);
-	await openTool(animated.page, "Palette");
+	await openTool(animated.page, "Palette tools");
 	await animated.page
 		.getByRole("button", { name: "Close", exact: true })
 		.click();

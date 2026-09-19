@@ -98,7 +98,7 @@ try {
 	const open = async () => {
 		await page
 			.getByRole("navigation", { name: "Workbench tools" })
-			.getByRole("button", { name: "Palette", exact: true })
+			.getByRole("button", { name: "Palette tools", exact: true })
 			.click();
 		await page.locator(".contrast-sample-text").waitFor();
 		await page.evaluate(() => document.fonts.ready);

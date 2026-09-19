@@ -322,7 +322,7 @@ try {
 		assert.equal(await page.locator(".artwork-card").count(), 0);
 		await classicReady();
 		const colors = await page
-			.locator("main .desktop-color, main .mobile-swatch")
+			.locator("main .desktop-color, main .mobile-color")
 			.evaluateAll((swatches) =>
 				swatches.map((swatch) => getComputedStyle(swatch).backgroundColor),
 			);

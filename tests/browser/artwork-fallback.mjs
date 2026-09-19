@@ -308,7 +308,7 @@ try {
 			assert.equal(s.state.toneCalls, 1);
 			// Retrying display restores the sharp image without changing the chosen palette.
 			const paletteBefore = await s.page
-				.locator("main .desktop-color, main .mobile-hex")
+				.locator("main .desktop-color, main .mobile-color")
 				.allTextContents();
 			s.state.mode = "normal";
 			await s.page
@@ -324,7 +324,7 @@ try {
 			);
 			assert.deepEqual(
 				await s.page
-					.locator("main .desktop-color, main .mobile-hex")
+					.locator("main .desktop-color, main .mobile-color")
 					.allTextContents(),
 				paletteBefore,
 			);

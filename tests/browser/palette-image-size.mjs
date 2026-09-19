@@ -151,7 +151,7 @@ try {
 			);
 			await page
 				.getByRole("navigation", { name: "Workbench tools" })
-				.getByRole("button", { name: "Palette", exact: true })
+				.getByRole("button", { name: "Palette tools", exact: true })
 				.click();
 			await page
 				.getByRole("dialog")
