@@ -17,7 +17,13 @@ The application does not require an account. It does not currently offer a perso
 5. With locks present, **Random matching art** looks for another artwork containing all those colors in the current color index.
 6. Use **Save & share** to download a palette, create an artwork card, or save a shareable link.
 
-An artwork can have metadata and an image ID yet still fail to load. If that happens, retry or choose another artwork. The museum's image service is a separate dependency from the website.
+An artwork can have metadata and an image ID yet still fail to load. The museum's image service is a separate dependency from the website.
+
+### When a museum image is unavailable
+
+The current source tries the sharp museum image first, including the existing image proxy. If both fail, indexed artworks can use their verified, at-most-200px saved sample. The low-resolution preview has a light film texture and a **Museum image unavailable · Preview** label. Select that label to retry the museum image; successful recovery removes the treatment without changing your chosen palette. This handles selective access blocks as well as service failures—it does not claim that the museum is down for everyone.
+
+The treatment is for display only. Dominant, Vibrant, and explicitly requested Tone use unfiltered pixels. Missing, changed, or unverifiable samples produce an unavailable message rather than another artwork's preview. Coverage is limited to the 59,025 indexed artworks, not every search result. No original JPEGs need to be uploaded for this fallback; local original-file cleanup remains a separate decision. Consult the release checklist for deployment status; source changes are not automatically live.
 
 ## Find artwork
 
@@ -26,6 +32,10 @@ The discovery search uses the museum's live metadata service, not the frozen col
 Filters combine: a work needs to satisfy the selected constraints, not just one of them. Date filtering includes artworks whose date range overlaps the requested period. Broaden or clear filters if no results appear.
 
 **More like this** is not an AI similarity search. When an artist ID is available, it searches for other work by that artist; otherwise it uses the medium. It excludes the current artwork and retains the public-domain choice.
+
+Open **Recent searches** in the Search panel to revisit your last 10 completed searches. Each entry restores the keywords, filters, and last results page, including “More like this” searches. Reopening fetches current museum results, not a saved copy of the results. Repeated searches move to the top instead of creating duplicates; failed requests and unsubmitted typing are not saved.
+
+Search history stays in this browser and survives reloads when browser storage is available. It does not sync across devices. **Clear searches** removes search history without clearing your recent palettes or changing the current artwork. If storage is unavailable, searches remain available for the current session and the panel explains the limitation.
 
 Manually choosing a search result does **not** enforce your locked-color constraints. Existing locks still stay in the palette, but this does not prove that the manually selected image contains those locked colors.
 
@@ -84,6 +94,8 @@ These unsuccessful matching outcomes leave your artwork, palette, and locks unch
 
 Palette tools show mode alternatives and a text/background contrast preview. Select two existing swatches to see the ratio and guidance. A suggested text color can be copied without altering the palette.
 
+The large lorem ipsum sample fits as many whole words as the preview width allows, staying on one line without reducing its type size.
+
 For opaque colors, the checker uses 4.5:1 for normal-text AA and 3:1 for large-text AA. The actual rendered text size and weight matter to the large-text category. Passing this two-color check does not certify a whole website or address transparency, image backgrounds, focus indicators, or every accessibility requirement. [W3C contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
 
 ## History, exports, and sharing
@@ -105,7 +117,7 @@ History is local to that browser and origin. It does not synchronize across devi
 | Classic artwork image | The original 1200 × 1440 PNG layout with artwork, palette, hex values, attribution, and museum link; selected by default |
 | Card | A 1200 × 1680 framed PNG containing the uncropped artwork, selected palette, hex values, museum link, attribution, and rights text |
 
-The ordinary palette exports are produced in the browser. The artwork card also needs the selected museum image to load. A JSON palette export is not a complete backup of history, locks, or artwork metadata. ASE names use the hex values; do not assume optional poetic Tone names become ASE swatch names.
+The ordinary palette exports are produced in the browser. Artwork cards use the sharp museum image when available, otherwise the treated saved preview. Both card formats label a fallback inside the downloaded PNG as a low-resolution preview; palette swatch pixels remain unchanged. A JSON palette export is not a complete backup of history, locks, or artwork metadata. ASE names use the hex values; do not assume optional poetic Tone names become ASE swatch names.
 
 In Save & share, choose **Classic** for the original design or **Card** for the cursive design. Both show a preview in the same reserved space, so switching formats does not move the download and share controls. Each keeps its original proportions; Classic previews the actual PNG output. The choice lasts for the current page session. The card frame borrows colors from your selected palette, with self-hosted Allura and Dancing Script fonts and a shaped title banner. Five or six swatches share one row; seven or eight use two rows. Its preview and PNG use the same HTML/CSS layout; the original image is fitted without cropping. Both exports remain local to your browser and do not save a shared palette or call Tone.
 
@@ -117,7 +129,7 @@ Sharing saves the current swatches, artwork ID, mode, and count on the server an
 
 The saved URL remains visible if copying or native sharing is denied or cancelled. A failed clipboard operation is not necessarily a failed database save. If saving itself fails, the palette remains on screen for retry or local export.
 
-Anyone with the URL can view that palette. There is no account-based access control, edit history, revocation UI, or user-facing deletion endpoint. Share links do not preserve workbench locks or the Tone description. They still depend on museum artwork metadata/images for the artwork presentation.
+Anyone with the URL can view that palette. There is no account-based access control, edit history, revocation UI, or user-facing deletion endpoint. Share links do not preserve workbench locks or the Tone description. They still depend on museum artwork metadata; indexed artwork images can use the same saved-preview fallback. Saved swatches are never re-extracted during image recovery.
 
 ## Desktop, mobile, and accessibility behavior
 

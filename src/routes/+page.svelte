@@ -11,7 +11,6 @@
         searchArtworks,
         getRandomArtwork,
         getArtworkUrl,
-        type SearchParams,
         type Artwork,
     } from "$lib/api/artic";
     import {
@@ -34,6 +33,7 @@
     import { toneImage } from '$lib/images/artwork-image';
     import ArtworkImage from '$lib/components/ArtworkImage.svelte';
     import { HISTORY_KEY, parseHistory, rememberPalette, type RecentPalette } from '$lib/history';
+    import { SEARCH_HISTORY_KEY, SEARCH_PERIODS as periods, discoveryParams, parseSearchHistory, rememberSearch, type DiscoverySearch, type RecentSearch } from '$lib/search-history';
     import PaletteEditor from '$lib/components/PaletteEditor.svelte';
     import ArtworkCard from '$lib/components/ArtworkCard.svelte';
     import ClassicArtworkCard from '$lib/components/ClassicArtworkCard.svelte';
@@ -141,23 +141,19 @@
     let cardFormat = $state<'classic' | 'card'>('classic');
     let artistFilter = $state('');
     let mediumFilter = $state('');
-    let periodFilter = $state('');
+    let periodFilter = $state<DiscoverySearch['period']>('');
     let publicDomain = $state(false);
     let searchBusy = $state(false);
     let searchStatus = $state('');
     let searchPage = $state(1);
     let searchTotal = $state(0);
-    let activeSearch: SearchParams = {};
+    let activeSearch: DiscoverySearch = { q: '', artist: '', medium: '', period: '', publicDomain: false };
     let searchRequest = 0;
+    let recentSearches = $state<RecentSearch[]>([]);
+    let searchHistoryStatus = $state('');
+    let searchHistoryVersion = 0;
     let busy = $derived(loading || matching || paletteLoading || aiLoading || comparisonBusy);
     let minimumCount = $derived(Math.max(5, locks.findLastIndex(Boolean) + 1));
-    const periods = [
-        { value: '', label: 'Any period' },
-        { value: '-5000:1799', label: 'Before 1800' },
-        { value: '1800:1899', label: '1800–1899' },
-        { value: '1900:1949', label: '1900–1949' },
-        { value: '1950:2026', label: '1950–present' }
-    ];
 
     // ── derived: pick the most vibrant color as the dynamic accent ──
     let accentColor = $derived.by(() => {
@@ -174,6 +170,8 @@
     onMount(async () => {
         try { recent = parseHistory(localStorage.getItem(HISTORY_KEY)); }
         catch { historyStatus = 'History is available for this session only.'; }
+        try { recentSearches = parseSearchHistory(localStorage.getItem(SEARCH_HISTORY_KEY)); }
+        catch { searchHistoryStatus = 'Search history is available for this session only.'; }
         await loadRandom();
     });
     onDestroy(() => matchController?.abort());
@@ -390,29 +388,65 @@
     }
 
     async function handleSearch() {
-        const years = periodFilter ? periodFilter.split(':').map(Number) : [];
-        activeSearch = { q: searchQuery, artist: artistFilter, medium: mediumFilter, publicDomain,
-            fromYear: years[0], toYear: years[1] };
+        activeSearch = { q: searchQuery, artist: artistFilter, medium: mediumFilter, period: periodFilter, publicDomain };
         await runSearch(1);
     }
 
     async function runSearch(page: number) {
         const request = ++searchRequest;
+        const search = { ...activeSearch }, historyVersion = searchHistoryVersion;
         searchBusy = true;
         searchStatus = '';
         showResults = true;
         try {
-            const result = await searchArtworks({ ...activeSearch, page, limit: 12 });
+            const result = await searchArtworks(discoveryParams(search, page));
             if (request !== searchRequest) return;
             searchResults = result.data.filter(a => a.image_id);
             searchPage = page;
             searchTotal = result.pagination.total;
+            // A completed request must not undo an explicit history clear made while it was pending.
+            if (historyVersion === searchHistoryVersion) {
+                recentSearches = rememberSearch(recentSearches, search, page);
+                try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(recentSearches)); searchHistoryStatus = ''; }
+                catch { searchHistoryStatus = 'Search history is available for this session only.'; }
+            }
             if (!searchResults.length) searchStatus = 'No artworks match. Try a broader search or clear your filters.';
         } catch {
             if (request === searchRequest) { searchResults = []; searchStatus = 'Search is unavailable. Please try again.'; }
         } finally {
             if (request === searchRequest) searchBusy = false;
         }
+    }
+
+    async function restoreSearch(entry: RecentSearch) {
+        searchQuery = entry.search.q;
+        artistFilter = entry.search.artist;
+        mediumFilter = entry.search.medium;
+        periodFilter = entry.search.period;
+        publicDomain = entry.search.publicDomain;
+        activeSearch = { ...entry.search };
+        const pending = runSearch(entry.page);
+        await tick();
+        toolDialog?.querySelector<HTMLInputElement>('[aria-label="Search artworks"]')?.focus();
+        await pending;
+    }
+
+    async function clearSearchHistory() {
+        ++searchHistoryVersion;
+        recentSearches = [];
+        try { localStorage.removeItem(SEARCH_HISTORY_KEY); searchHistoryStatus = 'Search history cleared.'; }
+        catch { searchHistoryStatus = 'Could not clear browser storage; this session’s search history was cleared.'; }
+        await tick();
+        toolDialog?.querySelector<HTMLInputElement>('[aria-label="Search artworks"]')?.focus();
+    }
+
+    function searchDescription(entry: RecentSearch) {
+        const search = entry.search;
+        return [search.q && search.artist ? `Artist: ${search.artist}` : '',
+            search.medium && (search.q || search.artist) ? `Medium: ${search.medium}` : '',
+            search.period ? periods.find(period => period.value === search.period)?.label : '',
+            search.publicDomain ? 'Public domain' : '', entry.page > 1 ? `Page ${entry.page}` : '']
+            .filter(Boolean).join(' · ');
     }
 
     async function moreLikeThis() {
@@ -422,8 +456,8 @@
         artistFilter = artwork.artist_id ? artwork.artist_title || '' : '';
         mediumFilter = artwork.artist_id ? '' : artwork.medium_display || '';
         periodFilter = '';
-        activeSearch = artwork.artist_id ? { artistId: artwork.artist_id, excludeId: artwork.id, publicDomain }
-            : { medium: mediumFilter, excludeId: artwork.id, publicDomain };
+        activeSearch = { q: '', artist: artistFilter, medium: mediumFilter, period: '', publicDomain,
+            ...(artwork.artist_id ? { artistId: artwork.artist_id } : {}), excludeId: artwork.id };
         await runSearch(1);
     }
 
@@ -610,6 +644,24 @@
                     </div>
                 </form>
             </details>
+            {#if recentSearches.length}
+                <details class="workbench-panel mb-4" open={!showResults}>
+                    <summary>Recent searches <span class="opacity-70">({recentSearches.length})</span></summary>
+                    <p class="text-xs mt-3 opacity-70">Saved in this browser. Reopen a search to see current results.</p>
+                    <ul class="grid gap-2 mt-3" aria-label="Recent searches">
+                        {#each recentSearches as entry (entry.id)}
+                            <li class="min-w-0">
+                                <button type="button" class="recent-search w-full text-left rounded-md p-3" onclick={() => restoreSearch(entry)}>
+                                    <span class="block text-sm break-words">{entry.search.q || (entry.search.artist ? `Works by ${entry.search.artist}` : entry.search.medium || 'All artworks')}</span>
+                                    {#if searchDescription(entry)}<span class="block text-xs mt-1 opacity-70 break-words">{searchDescription(entry)}</span>{/if}
+                                </button>
+                            </li>
+                        {/each}
+                    </ul>
+                    <button type="button" class="text-xs underline mt-3" onclick={clearSearchHistory}>Clear searches</button>
+                </details>
+            {/if}
+            {#if searchHistoryStatus}<p role="status" class="text-xs mb-3">{searchHistoryStatus}</p>{/if}
             {#if searchBusy}<p role="status" class="text-sm mb-3">Searching the collection…</p>{/if}
             {#if searchStatus}<p role="status" class="text-sm mb-3">{searchStatus}</p>{/if}
 

@@ -1,5 +1,14 @@
 # Release history and verification
 
+## Search history and responsive contrast sample — 2026-09-19
+
+- [x] Add browser-local history for the last 10 completed discovery searches, restoring filters and the last results page, including exact artist-ID searches. Keep palette history independent; failed requests and unfinished drafts are not saved.
+- [x] Replace the large contrast heading with a whole-word lorem ipsum sample that fits its available width without shrinking the type.
+- [x] Pass 145 Node tests and Svelte checks with zero errors or warnings. Fixture-based Chromium checks passed 14 search-history, 12 contrast-sample and 31 workbench scenarios. A production build passed the static budget. These are browser-engine checks, not physical-device measurements; no new WebKit pass is claimed.
+- [x] Include the previously direct-deployed fallback and slim-delivery source in the authorized Git follow-up. Verify all 3,953 archived legacy files against their original Git blobs; preserve binary attributes at their new paths. No original images, R2 release objects, credentials or database settings are changed by this follow-up.
+
+GitHub PR history and Vercel deployment state establish delivery status; local verification alone is not evidence of a production rollout.
+
 ## Slim deployment and legacy compatibility — 2026-09-16 UTC
 
 - [x] Preserve all 3,953 legacy files / 476,497,443 bytes in `archives/color-index/`; verify every hash. Keep originals, v3 data, release pointer, Random/rights policy and the already-deployed application source unchanged.
@@ -24,7 +33,7 @@ See [the footprint runbook](vercel-footprint.md) for repeatable verification, cr
 
 An unmodified first-load check selected *Burt Lancaster* (111134), whose current museum metadata marks it non-public-domain. It correctly had no saved-preview fallback and remained unavailable during the museum block. Unrestricted Random and live search can still select artwork outside the preview index; changing that selection policy requires a separate decision. This release improves indexed-image availability, not every discovery result.
 
-The preceding production deployment, `dpl_A1wRHotpa4RfnZRU3MwRGSacH2CF`, remains the rollback reference. The deploy snapshot is retained locally; source changes and this post-deployment record remain uncommitted.
+The preceding production deployment, `dpl_A1wRHotpa4RfnZRU3MwRGSacH2CF`, remains the rollback reference. The deploy snapshot is retained locally. Source changes and this post-deployment record were uncommitted at that release; the September 19 Git follow-up includes them.
 
 ## Full-scan R2 production release — 2026-09-14
 

@@ -14,6 +14,28 @@
     let bg = $derived(colors[Math.min(background, colors.length - 1)]?.hex ?? '#ffffff');
     let ratio = $derived(contrastRatio(text, bg));
     let suggestion = $derived(suggestTextColor(text, bg));
+
+    const lorem = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.';
+    let sampleText = $state('Lorem ipsum');
+    let sampleWidth = $state(0);
+    let measureWidth = $state(0);
+    let measure = $state<HTMLSpanElement>();
+
+    $effect(() => {
+        const node = measure?.firstChild;
+        if (!node || !sampleWidth || !measureWidth) return;
+        // Measure whole words in the rendered font; font changes resize the hidden line too.
+        const range = document.createRange();
+        range.setStart(node, 0);
+        let end = 0, fitted = '';
+        for (const word of lorem.split(' ')) {
+            end += word.length + (end ? 1 : 0);
+            range.setEnd(node, end);
+            if (range.getBoundingClientRect().width > sampleWidth) break;
+            fitted = lorem.slice(0, end);
+        }
+        sampleText = fitted;
+    });
 </script>
 
     {#snippet contrastContents()}
@@ -35,7 +57,10 @@
             {/if}
         </div>
         <div class="rounded-md p-5 my-4" style={`background:${bg};color:${text}`} aria-label="Text contrast sample">
-            <p class="text-2xl">Art becomes color.</p>
+            <p class="text-2xl contrast-sample" bind:clientWidth={sampleWidth}>
+                <span class="contrast-sample-measure" aria-hidden="true" bind:this={measure} bind:clientWidth={measureWidth}>{lorem}</span>
+                <span class="contrast-sample-text">{sampleText}</span>
+            </p>
             <p class="text-base mt-2">A small type sample for this color pair.</p>
         </div>
         <p role="status" class="text-sm">{ratio.toFixed(2)}:1 · {ratio >= 4.5 ? 'Passes AA for normal text' : ratio >= 3 ? 'Passes AA for large text only' : 'Does not meet AA text contrast'}</p>
@@ -55,3 +80,8 @@
             {@render contrastContents()}
         </details>
     {/if}
+
+<style>
+    .contrast-sample { position: relative; min-height: 1lh; overflow: hidden; white-space: nowrap; }
+    .contrast-sample-measure { position: absolute; width: max-content; visibility: hidden; }
+</style>

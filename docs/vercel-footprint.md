@@ -4,7 +4,10 @@ Deployed September 16, 2026. Production is
 `dpl_8V2UuiqivHgYgJXxB6mxLxhLb4SJ`; both protected earlier deployments remain
 READY. All 3,953 compatibility objects and old redirected URLs passed complete
 hash/header verification. The active v3 release and application behavior are
-unchanged. No source-control commit or push was made.
+unchanged. No source-control commit or push was made during that direct deployment;
+the September 19 Git follow-up includes this already-deployed source alongside
+search history and the responsive contrast sample. See GitHub and Vercel history
+for the current revision and production target.
 
 The initial disposable REST test failed: two PUTs using `If-None-Match: *`
 both returned 200 and the second replaced the first body. No release objects

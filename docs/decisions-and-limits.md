@@ -28,7 +28,7 @@ Tradeoff: local clustering may vary between runs and browser decoding/resize beh
 
 The art index and catalog are file-based. Neon stores small user-selected shared palettes. Browser history is another independent store.
 
-Tradeoff: shared artwork presentation still needs museum metadata/images, local history is not cross-device, and no account or revocation model exists. The full collection does not become a Neon image cache simply because a database connection is available.
+Tradeoff: shared artwork presentation still needs museum metadata; sharp images use the museum, while verified indexed samples can supply labeled low-resolution previews. Local history is not cross-device, and no account or revocation model exists. The full collection does not become a Neon image cache simply because a database connection is available.
 
 ### Freeze inputs and retain an audit trail
 
@@ -46,11 +46,12 @@ Tradeoff: fixed jobs do not automatically incorporate new museum records during 
 | Color presence | Whole-image sample includes backgrounds, frames, and display cases |
 | Perceptual accuracy | Experimental tolerances; no broad independently labeled calibration set |
 | Image profiles | No automatic ICC normalization; network batch path skips embedded JPEG profiles |
+| Image fallback | Only matching, verified indexed samples; at most 200px of detail, labeled in the UI and artwork exports; does not make live discovery/metadata work offline |
 | Grayscale | Informational conservative tags; no automatic exclusion and no full semantic classification |
 | Full scan | Completion depends on an audited final report; metadata eligibility alone is not downloaded-image coverage |
 | Runtime scale | On-demand R2 data; 12 MiB response-body budget, 2,500 checks, 30-second deadline; difficult queries can be incomplete |
 | Sharing | Anonymous public links; no account permissions, revocation UI, edit API, or deletion API |
-| History | Browser-local, capped at 24 entries, not a complete backup |
+| History | Browser-local: 24 recent palettes and 10 recent searches; searches restore filters/page and refetch live results; not a complete backup or cross-device sync |
 | Abuse controls | Per-instance memory limits; not distributed quotas or authenticated access control |
 | Image proxy | Restricted museum target, but no explicit byte cap/server deadline in the handler |
 | Deployment | Current local work is not automatically present on production or older previews |

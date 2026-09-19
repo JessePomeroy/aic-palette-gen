@@ -31,10 +31,13 @@ The offline process is not part of an incoming browser request. A visitor does n
 | Presentation | [`src/app.css`](../src/app.css), [`src/lib/components/`](../src/lib/components/) | Layout, palette controls, comparisons, contrast, accessible color pickers |
 | Museum client | [`src/lib/api/artic.ts`](../src/lib/api/artic.ts) | Structured discovery queries, artwork metadata, image and museum URLs |
 | Browser extraction | [`src/lib/colors/extraction.ts`](../src/lib/colors/extraction.ts) | Image loading, small Canvas samples, k-means palettes, color conversions |
+| Artwork image loading | [`src/lib/images/artwork-image.ts`](../src/lib/images/artwork-image.ts), [`ArtworkImage.svelte`](../src/lib/components/ArtworkImage.svelte) | Museum/proxy requests, verified preview fallback, cancellation, recovery and object-URL ownership |
+| Preview presentation | [`preview-treatment.ts`](../src/lib/images/preview-treatment.ts) | Shared film treatment for display/card exports, isolated from extraction pixels |
 | Workbench color tools | [`src/lib/colors/workbench.ts`](../src/lib/colors/workbench.ts) | Lock application, contrast ratio, readable text suggestions |
 | Indexed matching | [`src/lib/colors/color-index.ts`](../src/lib/colors/color-index.ts), [`indexed-search.ts`](../src/lib/colors/indexed-search.ts) | Index validation, conservative candidates, strict pixel acceptance, cache ownership |
 | Metadata validation | [`src/lib/colors/index-catalog.ts`](../src/lib/colors/index-catalog.ts) | Public-domain catalog normalization and unique identity |
 | History | [`src/lib/history.ts`](../src/lib/history.ts) | Bounded local snapshots and defensive parsing |
+| Search history | [`src/lib/search-history.ts`](../src/lib/search-history.ts) | Discovery filters, exact request reconstruction, bounded recent searches and defensive parsing |
 | Sharing persistence | [`src/lib/db/index.ts`](../src/lib/db/index.ts) | Lazy Neon connection and parameterized saved-palette queries |
 | Request boundaries | [`src/lib/server/`](../src/lib/server/) | Bounded input, provider-output validation, per-instance write limits |
 | Offline build tools | [`scripts/`](../scripts/) | Catalog import/refresh, source downloads, sample generation, scan supervision/audits |
@@ -49,7 +52,7 @@ Desktop and mobile use viewport-sized main layouts with one shared native dialog
 
 Artwork selection, palette generation, comparisons, discovery searches, and sharing use request counters. A completion checks that it still belongs to the current request before changing state. This prevents an older response from replacing a newer selection. These guards are not equivalent to cancelling every upstream request: some work may finish after its result has become irrelevant.
 
-Locked-color matching additionally uses an `AbortController`, combined with a 30-second deadline. User cancellation and component teardown stop that search. The indexed-search module owns its catalog and sample cache for one workbench instance; it does not use an unbounded global cache or upload a user's locked colors to the museum.
+Locked-color matching additionally uses an `AbortController`, combined with a 30-second deadline. User cancellation and component teardown stop that search. The browser's indexed-search instance shares bounded, verified public asset caches between matching and image-preview lookup. Queries, locks, and palettes are not stored in that shared instance; module initialization performs no network or DOM work during SSR.
 
 Selecting new artwork resets transient palette/comparison/share state and returns to Dominant mode, while preserving workbench locks. Restoring history explicitly restores the historical lock snapshot. Applying a mode variant preserves current locks. These are distinct operations and should stay distinct in future refactors.
 
@@ -57,7 +60,9 @@ Selecting new artwork resets transient palette/comparison/share state and return
 
 ### 1. Browser palette generation
 
-The selected museum image is loaded directly first, with a same-origin image-proxy fallback. Ordinary large images request 843px; narrower originals use bounded derivatives instead of enlargement. Each attempt has a 15-second request timeout. The browser decodes the image, draws it onto a Canvas no larger than 100px on either dimension, and collects pixels with alpha at least 128.
+The selected museum image is loaded directly first, with a same-origin image-proxy fallback. Ordinary large images request 843px; narrower originals use bounded derivatives instead of enlargement. Each fetch attempt has a 15-second request timeout. If both paths fail or cannot decode, image loading looks up the artwork ID in the released directory, checks the current image ID against the indexed metadata, and verifies the saved sample's range, decompression bounds, dimensions, and hash. This lookup has a separate 15-second deadline and the existing 12 MiB download budget; it does not query color tiles. Unindexed, changed, explicitly non-public-domain, or corrupt inputs fail closed.
+
+The browser draws the **unfiltered** source onto a Canvas no larger than 100px on either dimension and collects pixels with alpha at least 128. Cached previews are capped at 32 PNG blobs; original museum images are not persisted by this module. A separate presentation function applies the accepted light grain/blur/vignette for displays and artwork-card exports. Its upscaled PNG is a presentation surface, not recovered image detail. Native display images still load directly without requiring CORS; a displayable sharp image is not replaced merely because extraction needed its own fallback. Each image view owns its recovery request and object URL, ignores stale completions, and allows an explicit retry. Exports label low-resolution imagery inside the PNG.
 
 For palette generation only, pixels with average RGB brightness below 15 or above 245 are omitted. K-means uses the requested number of clusters, random initial pixel positions, Euclidean RGB distance, and ten iterations. Empty clusters retain their previous centroid. Centroids become hex/RGB/HSL color objects.
 
@@ -90,7 +95,7 @@ The current artwork is excluded. Candidate order is randomized, unseen IDs are p
 
 ### 3. Interpretive Tone
 
-Tone fetches a 400px artwork JPEG, then posts its bytes to the same-origin tone endpoint. The server validates the upload and count, applies its burst limits, and makes one configured Gemini request. The current code names `gemini-2.5-flash-lite`; that is an implementation setting, not a recommendation about the latest provider model.
+Tone requests a 400px artwork JPEG through the same loader, then posts its bytes to the same-origin tone endpoint. During image failure, an available unfiltered saved sample is encoded as a JPEG first; the grain/blur display is never sent to the provider. The server validates the upload and count, applies its burst limits, and makes one configured Gemini request. The current code names `gemini-2.5-flash-lite`; that is an implementation setting, not a recommendation about the latest provider model.
 
 The prompt requests a mood description and named colors capturing the artwork's feeling, including colors not literally present. Returned JSON is normalized and validated before the browser accepts it. The server key is sent in the provider request header, never exposed to the browser or placed in the provider URL. There are no automatic provider retries. See the [API reference](api-reference.md) for size/deadline/error details.
 
@@ -107,12 +112,13 @@ The real table uses integer artwork IDs and counts, JSONB colors, text mode/ID, 
 | Action | Data crossing the boundary | Destination |
 |---|---|---|
 | Search/discovery | Search terms and selected filters | Museum metadata API |
-| Display/extract artwork | Public image identifier and image bytes | Museum IIIF service; optionally same-origin proxy |
+| Display/extract artwork | Public image identifier and image bytes; verified sample-range requests only when needed | Museum IIIF service, same-origin proxy, or read-only R2 gateway for a saved preview |
 | Match locked colors | Relevant color-tile, metadata and sample-range requests; matching is local | Read-only Cloudflare Worker and dedicated R2 bucket, not an AI service |
 | Tone generation | Small selected artwork JPEG and requested count | App server, then configured Gemini endpoint |
 | Share palette | Artwork ID, color objects, mode, count | App server, then Neon |
 | Open shared link | UUID lookup and artwork metadata request | App server to Neon and museum |
 | Recent history | Palette/artwork/lock snapshot | Browser-local storage |
+| Recent searches | Last 10 completed queries, filters and results-page positions; results are fetched live | Browser-local storage, separate from palette history |
 | Fonts and analytics | Browser requests to configured external resources | Google font services; Vercel Analytics in production builds |
 | Full scan | Public metadata/image requests; local result writes | Museum to local processing machine |
 
