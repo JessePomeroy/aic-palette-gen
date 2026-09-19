@@ -486,6 +486,79 @@ try {
 	);
 	results.push("Missing Clipboard API shows failure, never success");
 	await repeated.close();
+	const enlarged = await session(320, 568);
+	await enlarged
+		.locator("main")
+		.getByRole("combobox", { name: "Number of colors" })
+		.selectOption("8");
+	await ready(enlarged, 8);
+	await enlarged.evaluate(() => {
+		document.documentElement.style.fontSize = "200%";
+		window.clipboardFixture.denied = true;
+	});
+	await copies(enlarged).first().tap();
+	await notice(enlarged).filter({ hasText: "Clipboard unavailable" }).waitFor();
+	const zoomed = await enlarged.evaluate(() => ({
+		overflow: document.documentElement.scrollWidth > innerWidth,
+		artHeight: document.querySelector(".mobile-art").getBoundingClientRect()
+			.height,
+		settings: [
+			...document.querySelectorAll(".mobile-palette-settings > *"),
+		].map((el) => ({
+			width: el.getBoundingClientRect().width,
+			height: el.getBoundingClientRect().height,
+			fits: el.scrollWidth <= el.clientWidth,
+		})),
+		hexesFit: [...document.querySelectorAll("main .palette-hex")].every(
+			(el) => {
+				const text = el.getBoundingClientRect(),
+					button = el.parentElement.getBoundingClientRect();
+				return (
+					text.left >= button.left &&
+					text.right <= button.right &&
+					text.top >= button.top &&
+					text.bottom <= button.bottom
+				);
+			},
+		),
+	}));
+	assert.equal(
+		zoomed.overflow,
+		false,
+		"Enlarged settings and clipboard failure must not create horizontal overflow",
+	);
+	assert.ok(
+		zoomed.artHeight >= 80,
+		"Large text can scroll vertically without collapsing the artwork",
+	);
+	assert.ok(
+		zoomed.hexesFit,
+		"Enlarged hex labels remain inside their copy targets",
+	);
+	assert.ok(
+		zoomed.settings.every(
+			(control) => control.fits && control.width >= 44 && control.height >= 44,
+		),
+	);
+	await enlarged
+		.locator("main")
+		.getByRole("button", { name: "Regenerate unlocked", exact: true })
+		.tap();
+	await ready(enlarged, 8);
+	await locks(enlarged).last().tap();
+	assert.equal(
+		await locks(enlarged).last().getAttribute("aria-pressed"),
+		"true",
+	);
+	results.push(
+		"320px with 200% text: settings and all 8 hexes fit, artwork retained, controls reachable by scrolling",
+	);
+	if (output)
+		await enlarged.screenshot({
+			path: resolve(output, `${engine}-palette-320-enlarged.png`),
+			fullPage: true,
+		});
+	await enlarged.close();
 	if (engine === "chromium") {
 		const native = await session(1440, 900);
 		await native

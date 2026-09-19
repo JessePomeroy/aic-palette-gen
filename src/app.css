@@ -175,12 +175,12 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   .desktop-title { font-size: 18px; -webkit-line-clamp: 1; }
 }
 
-/* Mobile is a viewport-sized workbench; only the optional tool sheet scrolls. */
+/* Keep normal mobile layouts in view; enlarged text can scroll without losing the artwork. */
 .mobile-workbench {
   box-sizing: border-box;
   height: 100dvh;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto;
+  grid-template-rows: auto minmax(80px, 1fr) auto auto auto auto;
   gap: 8px;
   padding: env(safe-area-inset-top, 0px) 12px max(8px, env(safe-area-inset-bottom, 0px));
   max-width: 700px;
@@ -219,10 +219,15 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   line-height: 1.2;
 }
 .mobile-artist { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-secondary); font-size: 11px; margin-top: 3px; }
+.mobile-palette { container: palette-controls / inline-size; }
 .mobile-palette-settings { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: stretch; gap: 6px; margin-bottom: 6px; }
 .mobile-palette-settings select, .mobile-regenerate { min-width: 0; min-height: 44px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; font-size: .75rem; }
 .mobile-regenerate { line-height: 1.25; background: var(--bg-elevated); cursor: pointer; }
 .mobile-palette-hint { margin-top: 6px; font-size: .75rem; line-height: 1.4; color: var(--text-secondary); user-select: text; overflow-wrap: anywhere; }
+@container palette-controls (width < 18rem) {
+  .mobile-palette-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mobile-regenerate { grid-column: 1 / -1; }
+}
 .match-progress { display: flex; align-items: center; gap: 8px; }
 .match-spinner { width: 1em; height: 1em; flex-shrink: 0; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: match-spin .8s linear infinite; }
 @keyframes match-spin { to { transform: rotate(360deg); } }
