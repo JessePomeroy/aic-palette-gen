@@ -13,7 +13,7 @@ The application does not require an account. It does not currently offer a perso
 1. Open the workbench. It attempts to select an artwork with an image and generates a five-color dominant palette.
 2. Use **Random** for another artwork, or open **Find artwork** and search by subject, title, or artist.
 3. Choose five to eight colors and try **Dominant** or **Vibrant**.
-4. On desktop, click a swatch to copy and use its Lock control. On mobile, tap a swatch to lock it; open Palette tools to copy colors.
+4. Tap or click a main swatch to copy its hex on desktop or mobile. Use its separate **Lock** / **Unlock** control to keep or release that color's slot.
 5. With locks present, **Random matching art** looks for another artwork containing all those colors in the current color index.
 6. Use **Save & share** to download a palette, create an artwork card, or save a shareable link.
 
@@ -65,7 +65,11 @@ Tone requires a configured server credential and a working provider connection. 
 
 ## Keep colors with locks
 
+Copying never changes locks, and locking never copies. A successful copy shows **Copied #abada8.** in an accessible status message for three seconds while leaving the hex label visible. If clipboard access fails, the message says so and provides selectable text for manual copying; it does not claim success. Copy feedback stays visible at the bottom of an open tool panel, even when the controls have scrolled away.
+
 A lock preserves the exact color and its slot. Locks belong to the workbench, not just to the currently displayed artwork. They remain through new artwork selection, Random matching, regeneration, and mode changes. Unlocked slots are filled from the new candidate palette.
+
+**Regenerate unlocked** sits beside the main palette's color-count and extraction-mode controls on both desktop and mobile. It keeps every locked slot and becomes unavailable when all colors are locked.
 
 If a locked swatch occupies slot eight, unlock it before reducing the palette below eight colors. The interface calculates the minimum permitted count from the highest occupied locked slot.
 
@@ -92,7 +96,7 @@ These unsuccessful matching outcomes leave your artwork, palette, and locks unch
 
 ## Compare colors and check readability
 
-Palette tools show mode alternatives and a text/background contrast preview. Select two existing swatches to see the ratio and guidance. A suggested text color can be copied without altering the palette.
+**Palette tools** opens the existing drawer or sheet. Its **Current palette** section keeps the same copy, lock, and regeneration controls; **Advanced tools** groups mode comparison and text/background contrast checking. Select two existing swatches to see the ratio and guidance. A suggested text color can be copied without altering the palette.
 
 The large lorem ipsum sample fits as many whole words as the preview width allows, staying on one line without reducing its type size.
 
@@ -137,9 +141,9 @@ On mobile, pull down on a sheet's header or on non-interactive content that is a
 
 On desktop (1,024 CSS pixels wide and above), the workbench fits the viewport without a page scrollbar at typical window heights. The artwork stays fully visible without cropping; the bottom palette dock keeps color count, extraction mode, regeneration, Random, and locks close at hand. Swatches form a centered group with consistent, capped widths instead of stretching across the screen. Click a swatch to copy its hex value; use its separate Lock button to guide the next artwork. Long artwork captions are shortened in the dock; click the caption to read the full details.
 
-Search, Palette, History, and Save & share open right-side drawers. Palette contains full color names, mode comparisons, and contrast tools. These drawers scroll internally and can be dismissed with Close, Escape, or a click on the backdrop. Keyboard focus returns to the opener when it is still present.
+Search, Palette tools, History, and Save & share open right-side drawers. Palette tools contains full color names, mode comparisons, and contrast tools. These drawers scroll internally and can be dismissed with Close, Escape, or a click on the backdrop. Keyboard focus returns to the opener when it is still present.
 
-On smaller screens, the artwork and essential palette controls occupy the main view. Search, palette tools, history, exports, and artwork details open in dismissible sheets. Seven/eight swatches use two rows. Very short viewports may scroll to avoid clipping controls.
+On smaller screens, the artwork and essential palette controls occupy the main view. Main hex labels use 14px type at the default text size, with separate copy and lock targets at least 44px tall. Swatches wrap according to available width and text size: five colors fit one row at 390px, while denser or narrower palettes use balanced rows. Search, palette tools, history, exports, and artwork details open in dismissible sheets. Very short viewports may scroll to avoid clipping controls.
 
 Buttons expose labels and lock state; feedback uses status regions; motion is reduced when requested by the browser/OS. The contrast pickers support keyboard selection. Browser features such as dialogs, popovers, clipboard access, and native sharing can vary by device. Consult the [release checklist](release-checklist.md) for checks actually performed rather than treating this description as a universal browser-support guarantee.
 

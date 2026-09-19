@@ -166,7 +166,7 @@ async function mutate(page, action) {
 			.getByRole("button", { name: "Regenerate unlocked" })
 			.click();
 	if (action === "variant") {
-		await open(page, "Palette");
+		await open(page, "Palette tools");
 		await page
 			.getByRole("dialog")
 			.getByRole("button", { name: "Use vibrant", exact: true })
@@ -234,7 +234,7 @@ async function checkTheme(page, mobile) {
 		"The accent focus ring must remain visible",
 	);
 	await close(page);
-	await page.locator("main .desktop-lock, main .mobile-swatch").first().click();
+	await page.locator("main .desktop-lock, main .mobile-lock").first().click();
 	if (!mobile) {
 		const locked = await renderedColors(
 			page.locator(".desktop-lock.locked").first(),
@@ -242,7 +242,7 @@ async function checkTheme(page, mobile) {
 		assert.equal(locked.background, search.background);
 		assert.ok(contrastRatio(locked.text, locked.background) >= 4.5);
 	}
-	await open(page, "Palette");
+	await open(page, "Palette tools");
 	await ready(page);
 	const editorLock = await renderedColors(
 		page.getByRole("dialog").locator(".lock-button.locked").first(),
@@ -254,7 +254,7 @@ async function checkTheme(page, mobile) {
 	);
 	assert.ok(contrastRatio(editorLock.text, editorLock.background) >= 4.5);
 	await close(page);
-	await page.locator("main .desktop-lock, main .mobile-swatch").first().click();
+	await page.locator("main .desktop-lock, main .mobile-lock").first().click();
 	await open(page, mobile ? "Save" : "Save & share");
 	const share = await renderedColors(
 		page
@@ -365,7 +365,7 @@ try {
 				`${pending ? "pending" : "completed"} save invalidated by ${action}`,
 				async ({ page, state }) => {
 					if (action === "variant") {
-						await open(page, "Palette");
+						await open(page, "Palette tools");
 						await page
 							.getByRole("button", { name: "Use vibrant", exact: true })
 							.waitFor();
@@ -494,11 +494,13 @@ try {
 			.filter({ hasText: "Clipboard unavailable" })
 			.waitFor();
 		assert.equal(
-			(await page.locator("main .desktop-color").first().innerText()) ===
-				"Copied",
+			await page
+				.locator("main .desktop-color")
+				.first()
+				.evaluate((button) => button.classList.contains("copied")),
 			false,
 		);
-		await open(page, "Palette");
+		await open(page, "Palette tools");
 		await ready(page);
 		await page
 			.getByRole("dialog")

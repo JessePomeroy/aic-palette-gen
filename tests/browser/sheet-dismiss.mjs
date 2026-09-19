@@ -151,7 +151,7 @@ try {
 			},
 		};
 	}
-	for (const name of ["Search", "Palette", "History", "Save", "Info"]) {
+	for (const name of ["Search", "Palette tools", "History", "Save", "Info"]) {
 		const opener = await open(name);
 		const { offset } = await gesture("#workbench-panel-title", 0, 150);
 		assert.ok(offset && offset !== "0 0px", `${name} follows the finger`);
@@ -200,7 +200,7 @@ try {
 		() => !document.querySelector("#workbench-tools").open,
 	);
 	results.push("pulling non-interactive content at the top dismisses");
-	await open("Palette");
+	await open("Palette tools");
 	await page
 		.getByRole("button", { name: "Use vibrant", exact: true })
 		.waitFor();
