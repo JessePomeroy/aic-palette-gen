@@ -1,0 +1,21 @@
+{
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"buildCommand": "npm run build",
+	"redirects": [
+		{
+			"source": "/color-index/starter-20260912/:path*",
+			"destination": "https://chromacollection-index.thinkingofview.workers.dev/v2/starter-20260912/:path*",
+			"permanent": false
+		},
+		{
+			"source": "/color-index/expanded-20260912/:path*",
+			"destination": "https://chromacollection-index.thinkingofview.workers.dev/v2/expanded-20260912/:path*",
+			"permanent": false
+		},
+		{
+			"source": "/color-index/expanded-2500-20260913/:path*",
+			"destination": "https://chromacollection-index.thinkingofview.workers.dev/v2/expanded-2500-20260913/:path*",
+			"permanent": false
+		}
+	]
+}

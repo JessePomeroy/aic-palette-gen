@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
-import { fetchImageBlob } from "../src/lib/colors/extraction.ts";
+import { fetchImageBlob } from "../src/lib/images/artwork-image.ts";
 
 const originalFetch = globalThis.fetch;
 const imageUrl = "https://www.artic.edu/iiif/2/example/full/843,/0/default.jpg";

@@ -1,7 +1,7 @@
 // Direct-image comparison helpers for calibration. The app searches indexed samples.
 import { getImageUrl } from "../api/artic";
+import { fetchImageBlob } from "../images/artwork-image";
 import { LOCKED_COLOR_MATCH_POLICY, matchColorPixels } from "./color-index";
-import { fetchImageBlob } from "./extraction";
 
 export function containsLockedColors(
 	pixels: Uint8ClampedArray,

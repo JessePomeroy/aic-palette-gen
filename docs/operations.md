@@ -141,6 +141,7 @@ The monitor stops after completion. A service that is inactive with a successful
 | Checkpoint unchanged, status waiting | `retryAt`, service PID, recent log | Let the backoff finish; do not launch a competing writer |
 | HTTP 500/521 or interrupted downloads | Whether the same pending item is retrying and other requests recover | Preserve it as pending; avoid interpreting temporary service failure as a color rejection |
 | HTTP 403/404 receipt | Explicit skip reason and museum metadata/image identity | Keep the audit trail; do not assume the cause or bypass access restrictions |
+| Metadata works but images fail | Image status/content type, Cloudflare challenge/block headers, native browser versus proxy behavior | Use the verified low-resolution preview when available; a selective block is not proof of a museum-wide outage. The museum operator needs its security logs to identify the exact rule |
 | High skip percentage | Batch receipts and failure distribution | Inspect before resuming; do not weaken the gate automatically |
 | Low disk | Actual free space on the staging filesystem | Free unrelated space deliberately or choose an approved storage plan; originals are not automatic cleanup targets |
 | Sample/hash mismatch | Manifest/plan identity and the exact failing sample/source | Stop and investigate; do not silently overwrite a supposedly immutable artifact |
@@ -152,9 +153,21 @@ The monitor stops after completion. A service that is inactive with a successful
 
 ## Release and rollback
 
+The September 16 storage cleanup is deployed; see the
+[legacy compatibility and slim-build runbook](vercel-footprint.md) for receipts
+and rollback. Any repeat rollout must verify the R2 copy and Worker before
+deploying the slim app.
+
 The approved 2026-09-14 release packages 59,025 audited artworks into v3 color tiles, metadata pages, and lossless sample packs. Data lives in the **separate `chromacollection-index` R2 bucket**, in the same Cloudflare account as Angels Rest. Its only public access is the GET/HEAD/OPTIONS Worker in `workers/color-index/`; the app remains on Vercel. Existing buckets and DNS are unchanged. The public asset root is `https://chromacollection-index.thinkingofview.workers.dev/v3/full-59025-20260914`.
 
-General commands (substitute deliberately; these are external writes only when approved):
+**Upload safety warning, September 16:** the disposable REST probe showed that
+the conditional-write header used by the existing v3 uploader does not prevent
+overwrites at that endpoint. Existing v3 assets were left unchanged. Do not run
+the historical v3 upload commands below until that transport has its own
+verified immutable-write fix; the new legacy S3 uploader is restricted to v2
+and is not a v3 workaround. Packaging alone remains a local operation.
+
+Historical commands (external writes additionally require release approval):
 
 ```fish
 npm run colors:package -- --scan /absolute/scan --catalog /absolute/catalog/artworks.json --output /absolute/new-assets

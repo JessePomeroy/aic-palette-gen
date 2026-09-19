@@ -1,27 +1,17 @@
 import { mount, tick, unmount } from "svelte";
-import { type Artwork, getImageUrl } from "../api/artic";
+import type { Artwork } from "../api/artic";
 import alluraUrl from "../assets/fonts/allura-400.ttf?url";
 import dancingScriptUrl from "../assets/fonts/dancing-script-500.ttf?url";
-import { type ExtractedColor, fetchImageBlob } from "../colors/extraction";
+import type { ExtractedColor } from "../colors/extraction";
 import ArtworkCard from "../components/ArtworkCard.svelte";
 import cardStyles from "../components/artwork-card.css?inline";
-
-function dataUrl(blob: Blob): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const reader = new FileReader();
-		reader.onload = () => {
-			if (typeof reader.result === "string") resolve(reader.result);
-			else reject(new Error("Could not embed a card asset."));
-		};
-		reader.onerror = () => reject(new Error("Could not read a card asset."));
-		reader.readAsDataURL(blob);
-	});
-}
+import { blobDataUrl, loadArtworkImage } from "../images/artwork-image";
+import { presentArtworkImage } from "../images/preview-treatment";
 
 async function embeddedFont(url: string): Promise<string> {
 	const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
 	if (!response.ok) throw new Error("Could not load the card fonts.");
-	return dataUrl(await response.blob());
+	return blobDataUrl(await response.blob());
 }
 
 /** The same HTML/CSS as the preview; canvas only encodes the rendered card to PNG. */
@@ -31,13 +21,12 @@ export async function exportCard(
 ): Promise<Blob> {
 	if (!artwork.image_id || !colors.length)
 		throw new Error("Choose an artwork and palette first.");
-	const [imageUrl, allura, dancingScript] = await Promise.all([
-		fetchImageBlob(
-			getImageUrl(artwork.image_id, "large", artwork.thumbnail?.width),
-		).then(dataUrl),
+	const [source, allura, dancingScript] = await Promise.all([
+		loadArtworkImage(artwork),
 		embeddedFont(alluraUrl),
 		embeddedFont(dancingScriptUrl),
 	]);
+	const imageUrl = await blobDataUrl(await presentArtworkImage(source));
 	const width = 1200;
 	const target = document.createElement("div");
 	target.style.cssText = `position:fixed;left:-10000px;top:0;width:${width}px;pointer-events:none;`;
@@ -46,7 +35,7 @@ export async function exportCard(
 	document.body.append(target);
 	const component = mount(ArtworkCard, {
 		target,
-		props: { artwork, colors, imageUrl },
+		props: { artwork, colors, imageUrl, imagePreview: source.preview },
 	});
 	try {
 		await tick();

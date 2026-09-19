@@ -1,5 +1,40 @@
 # Release history and verification
 
+## Search history and responsive contrast sample — 2026-09-19
+
+- [x] Add browser-local history for the last 10 completed discovery searches, restoring filters and the last results page, including exact artist-ID searches. Keep palette history independent; failed requests and unfinished drafts are not saved.
+- [x] Replace the large contrast heading with a whole-word lorem ipsum sample that fits its available width without shrinking the type.
+- [x] Pass 145 Node tests and Svelte checks with zero errors or warnings. Fixture-based Chromium checks passed 14 search-history, 12 contrast-sample and 31 workbench scenarios. A production build passed the static budget. These are browser-engine checks, not physical-device measurements; no new WebKit pass is claimed.
+- [x] Include the previously direct-deployed fallback and slim-delivery source in the authorized Git follow-up. Verify all 3,953 archived legacy files against their original Git blobs; preserve binary attributes at their new paths. No original images, R2 release objects, credentials or database settings are changed by this follow-up.
+
+GitHub PR history and Vercel deployment state establish delivery status; local verification alone is not evidence of a production rollout.
+
+## Slim deployment and legacy compatibility — 2026-09-16 UTC
+
+- [x] Preserve all 3,953 legacy files / 476,497,443 bytes in `archives/color-index/`; verify every hash. Keep originals, v3 data, release pointer, Random/rights policy and the already-deployed application source unchanged.
+- [x] Replace the failed REST conditional-write approach with signed S3 requests. Before copying, observe 412 for a conflicting write, unchanged original bytes, task-owned probe deletion and final 404. Copy only the three approved v2 prefixes, verify all bytes and publish index entry points last.
+- [x] Revoke the bucket-only, 24-hour migration credential after use; observe rejected authentication (401) and remove its local file. No credentials were printed or included in source.
+- [x] Deploy compatibility Worker `c1ae0817-e517-4dc8-b042-ae19d71e217b`; verify all 3,953 public assets, CORS/cache/content-type headers, unchanged v3 manifest/count and bounded pack ranges.
+- [x] Pass 137 Node tests, zero Svelte errors/warnings, focused lint, static-budget checks and a production build. Earlier Chromium fixtures passed 15 fallback and 31 workbench checks; WebKit could not launch in this environment (`libicudata.so.74` missing).
+- [x] Deploy the byte-checked 133-file snapshot, digest `dbe91e766f72e54e19cbff877ed50592cf964ab16c97f46c1389c55ecf46b72f`, excluding archives and private files. Production `dpl_8V2UuiqivHgYgJXxB6mxLxhLb4SJ` is READY at `https://www.chromacollection.online`; remote build output is 24 static files / 964,207 bytes. Local before/after output is 477,461,866 / 964,423 bytes (99.8% smaller). These are artifact measurements, not observed billing savings.
+- [x] Verify all 3,953 old URLs redirect to the exact immutable objects and match hashes/headers. Check representative 307 locations separately.
+- [x] Inspect the user's existing Paperweight palette on desktop/mobile: 200 response, exact five colors/mode, loaded preview and no horizontal overflow. Real indexed matching preserves `#afa789` and renders a Cushion Cover preview; non-public-domain Burt Lancaster remains excluded from saved previews. No page errors, production saves or paid-provider calls.
+- [x] Recheck both protected deployments `dpl_3YqDtYD3CC6p6NUeBtoZyQfo3hHF` and `dpl_A1wRHotpa4RfnZRU3MwRGSacH2CF`: still READY, not deleted. No Git commit or push was made; existing dirty source was preserved.
+
+See [the footprint runbook](vercel-footprint.md) for repeatable verification, credential safety, rollback and monitoring. The original v3 REST uploader remains unchanged and must not be used as an immutable-upload workaround.
+
+## Filmic image fallback production release — 2026-09-16 UTC
+
+- [x] Verify the authorized local fallback: 126 Node tests, zero Svelte errors/warnings, 15 fallback scenarios in each of Chromium and WebKit, focused Biome, and a production build. The treatment stays separate from raw extraction, Tone inputs, and strict matching pixels.
+- [x] Deploy a source snapshot byte-matched against all 4,078 tracked/approved new files, excluding private environment files, local reports, dependencies, and Git internals. Source digest: `c25d3cca612d849c729eff5de4f081a03ddb0496d435320bfc630bd2cd39ee7f`. No source-control commit or push was made.
+- [x] Confirm Vercel deployment `dpl_3YqDtYD3CC6p6NUeBtoZyQfo3hHF` is READY and aliased to `https://www.chromacollection.online`. The production build passed; its initial missing generated Svelte config and snapshot-without-Git warnings did not prevent compilation or deployment.
+- [x] Verify the unchanged R2 pointer, manifest hash, and 59,025-artwork count. No R2 assets, original JPEGs, environment settings, database schema, or rights-selection policy changed.
+- [x] Inspect real production previews on mobile and desktop using *The Bedroom* as a controlled initial selection. Museum images and the deployed proxy returned 403; real hosted samples produced the labeled filmic image and five colors. Mobile locked matching selected *Hunters Surprised by Death*, retained the exact lock, and displayed its preview. No JavaScript errors, sharing writes, or paid-provider calls occurred.
+
+An unmodified first-load check selected *Burt Lancaster* (111134), whose current museum metadata marks it non-public-domain. It correctly had no saved-preview fallback and remained unavailable during the museum block. Unrestricted Random and live search can still select artwork outside the preview index; changing that selection policy requires a separate decision. This release improves indexed-image availability, not every discovery result.
+
+The preceding production deployment, `dpl_A1wRHotpa4RfnZRU3MwRGSacH2CF`, remains the rollback reference. The deploy snapshot is retained locally. Source changes and this post-deployment record were uncommitted at that release; the September 19 Git follow-up includes them.
+
 ## Full-scan R2 production release — 2026-09-14
 
 - [x] Complete final scan audit: 59,056 records accounted for, 59,025 indexed and 31 skipped; indexed originals and saved samples verified. All original images remain local and unchanged.

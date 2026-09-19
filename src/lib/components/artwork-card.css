@@ -148,6 +148,11 @@
   background: var(--card-paper);
 }
 
+/* Included in the export snapshot as well as the live image renderer. */
+.artwork-card-image-frame .artwork-media,
+.artwork-card-image-frame .artwork-media-frame { position: relative; width: 100%; height: 100%; }
+.artwork-card-preview-note { margin-bottom: .8cqi; font: 2.3cqi/1.3 system-ui, sans-serif; }
+
 .artwork-card-palette-panel {
   min-width: 0;
   padding: 1cqi 2.1cqi 1.6cqi;

@@ -10,14 +10,11 @@
     import {
         searchArtworks,
         getRandomArtwork,
-        getImageUrl,
         getArtworkUrl,
-        type SearchParams,
         type Artwork,
     } from "$lib/api/artic";
     import {
         extractColors,
-        fetchImageBlob,
         type ExtractedColor,
         type ExtractionMode,
     } from "$lib/colors/extraction";
@@ -32,8 +29,11 @@
     import { exportCard } from '$lib/export/card';
     import { pullToDismiss } from '$lib/interactions/pull-to-dismiss';
     import { applyLocks, readableText, suggestTextColor } from '$lib/colors/workbench';
-    import { createIndexedSearch } from '$lib/colors/indexed-search';
+    import { artworkIndex } from '$lib/colors/indexed-search';
+    import { toneImage } from '$lib/images/artwork-image';
+    import ArtworkImage from '$lib/components/ArtworkImage.svelte';
     import { HISTORY_KEY, parseHistory, rememberPalette, type RecentPalette } from '$lib/history';
+    import { SEARCH_HISTORY_KEY, SEARCH_PERIODS as periods, discoveryParams, parseSearchHistory, rememberSearch, type DiscoverySearch, type RecentSearch } from '$lib/search-history';
     import PaletteEditor from '$lib/components/PaletteEditor.svelte';
     import ArtworkCard from '$lib/components/ArtworkCard.svelte';
     import ClassicArtworkCard from '$lib/components/ClassicArtworkCard.svelte';
@@ -126,7 +126,7 @@
     let matching = $state(false);
     let matchStatus = $state('');
     let indexedCount = $state(0);
-    const indexedSearch = createIndexedSearch();
+    const indexedSearch = artworkIndex;
     let paletteRequest = 0;
     const exportFormats = ["json", "css", "png", "ase"] as const;
     let locks = $state<(ExtractedColor | null)[]>([]);
@@ -141,23 +141,19 @@
     let cardFormat = $state<'classic' | 'card'>('classic');
     let artistFilter = $state('');
     let mediumFilter = $state('');
-    let periodFilter = $state('');
+    let periodFilter = $state<DiscoverySearch['period']>('');
     let publicDomain = $state(false);
     let searchBusy = $state(false);
     let searchStatus = $state('');
     let searchPage = $state(1);
     let searchTotal = $state(0);
-    let activeSearch: SearchParams = {};
+    let activeSearch: DiscoverySearch = { q: '', artist: '', medium: '', period: '', publicDomain: false };
     let searchRequest = 0;
+    let recentSearches = $state<RecentSearch[]>([]);
+    let searchHistoryStatus = $state('');
+    let searchHistoryVersion = 0;
     let busy = $derived(loading || matching || paletteLoading || aiLoading || comparisonBusy);
     let minimumCount = $derived(Math.max(5, locks.findLastIndex(Boolean) + 1));
-    const periods = [
-        { value: '', label: 'Any period' },
-        { value: '-5000:1799', label: 'Before 1800' },
-        { value: '1800:1899', label: '1800–1899' },
-        { value: '1900:1949', label: '1900–1949' },
-        { value: '1950:2026', label: '1950–present' }
-    ];
 
     // ── derived: pick the most vibrant color as the dynamic accent ──
     let accentColor = $derived.by(() => {
@@ -174,6 +170,8 @@
     onMount(async () => {
         try { recent = parseHistory(localStorage.getItem(HISTORY_KEY)); }
         catch { historyStatus = 'History is available for this session only.'; }
+        try { recentSearches = parseSearchHistory(localStorage.getItem(SEARCH_HISTORY_KEY)); }
+        catch { searchHistoryStatus = 'Search history is available for this session only.'; }
         await loadRandom();
     });
     onDestroy(() => matchController?.abort());
@@ -264,8 +262,8 @@
         await regeneratePalette();
     }
 
-    async function generateTone(imageId: string, count: number, stillCurrent: () => boolean, nativeWidth?: number): Promise<PaletteVariant> {
-        const image = await fetchImageBlob(getImageUrl(imageId, 'medium', nativeWidth));
+    async function generateTone(selected: Artwork, count: number, stillCurrent: () => boolean): Promise<PaletteVariant> {
+        const image = await toneImage(selected);
         if (!stillCurrent()) throw new Error('Selection changed.');
         const res = await fetch(`/api/ai-palette?count=${count}`, {
             method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: image
@@ -279,19 +277,18 @@
     async function compareModes(tone = false) {
         if (!artwork?.image_id || busy) return;
         const request = ++comparisonRequest;
-        const imageId = artwork.image_id;
+        const selected = artwork;
         const count = colorCount;
-        const nativeWidth = artwork.thumbnail?.width;
         comparisonBusy = true;
         comparisonError = '';
         try {
             if (tone) {
-                const variant = await generateTone(imageId, count, () => request === comparisonRequest, nativeWidth);
+                const variant = await generateTone(selected, count, () => request === comparisonRequest);
                 if (request === comparisonRequest) variants = { ...variants, ai: variant };
             } else {
                 for (const mode of ['dominant', 'vibrant'] as const) {
                     if (variants[mode]) continue;
-                    const result = await extractColors(getImageUrl(imageId, 'large', nativeWidth), mode, count);
+                    const result = await extractColors(selected, mode, count);
                     if (request !== comparisonRequest) return;
                     if (!result.length) throw new Error('Could not compare these palettes. Please try again.');
                     variants = { ...variants, [mode]: { colors: result, description: '' } };
@@ -391,29 +388,65 @@
     }
 
     async function handleSearch() {
-        const years = periodFilter ? periodFilter.split(':').map(Number) : [];
-        activeSearch = { q: searchQuery, artist: artistFilter, medium: mediumFilter, publicDomain,
-            fromYear: years[0], toYear: years[1] };
+        activeSearch = { q: searchQuery, artist: artistFilter, medium: mediumFilter, period: periodFilter, publicDomain };
         await runSearch(1);
     }
 
     async function runSearch(page: number) {
         const request = ++searchRequest;
+        const search = { ...activeSearch }, historyVersion = searchHistoryVersion;
         searchBusy = true;
         searchStatus = '';
         showResults = true;
         try {
-            const result = await searchArtworks({ ...activeSearch, page, limit: 12 });
+            const result = await searchArtworks(discoveryParams(search, page));
             if (request !== searchRequest) return;
             searchResults = result.data.filter(a => a.image_id);
             searchPage = page;
             searchTotal = result.pagination.total;
+            // A completed request must not undo an explicit history clear made while it was pending.
+            if (historyVersion === searchHistoryVersion) {
+                recentSearches = rememberSearch(recentSearches, search, page);
+                try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(recentSearches)); searchHistoryStatus = ''; }
+                catch { searchHistoryStatus = 'Search history is available for this session only.'; }
+            }
             if (!searchResults.length) searchStatus = 'No artworks match. Try a broader search or clear your filters.';
         } catch {
             if (request === searchRequest) { searchResults = []; searchStatus = 'Search is unavailable. Please try again.'; }
         } finally {
             if (request === searchRequest) searchBusy = false;
         }
+    }
+
+    async function restoreSearch(entry: RecentSearch) {
+        searchQuery = entry.search.q;
+        artistFilter = entry.search.artist;
+        mediumFilter = entry.search.medium;
+        periodFilter = entry.search.period;
+        publicDomain = entry.search.publicDomain;
+        activeSearch = { ...entry.search };
+        const pending = runSearch(entry.page);
+        await tick();
+        toolDialog?.querySelector<HTMLInputElement>('[aria-label="Search artworks"]')?.focus();
+        await pending;
+    }
+
+    async function clearSearchHistory() {
+        ++searchHistoryVersion;
+        recentSearches = [];
+        try { localStorage.removeItem(SEARCH_HISTORY_KEY); searchHistoryStatus = 'Search history cleared.'; }
+        catch { searchHistoryStatus = 'Could not clear browser storage; this session’s search history was cleared.'; }
+        await tick();
+        toolDialog?.querySelector<HTMLInputElement>('[aria-label="Search artworks"]')?.focus();
+    }
+
+    function searchDescription(entry: RecentSearch) {
+        const search = entry.search;
+        return [search.q && search.artist ? `Artist: ${search.artist}` : '',
+            search.medium && (search.q || search.artist) ? `Medium: ${search.medium}` : '',
+            search.period ? periods.find(period => period.value === search.period)?.label : '',
+            search.publicDomain ? 'Public domain' : '', entry.page > 1 ? `Page ${entry.page}` : '']
+            .filter(Boolean).join(' · ');
     }
 
     async function moreLikeThis() {
@@ -423,8 +456,8 @@
         artistFilter = artwork.artist_id ? artwork.artist_title || '' : '';
         mediumFilter = artwork.artist_id ? '' : artwork.medium_display || '';
         periodFilter = '';
-        activeSearch = artwork.artist_id ? { artistId: artwork.artist_id, excludeId: artwork.id, publicDomain }
-            : { medium: mediumFilter, excludeId: artwork.id, publicDomain };
+        activeSearch = { q: '', artist: artistFilter, medium: mediumFilter, period: '', publicDomain,
+            ...(artwork.artist_id ? { artistId: artwork.artist_id } : {}), excludeId: artwork.id };
         await runSearch(1);
     }
 
@@ -450,13 +483,6 @@
         showResults = false;
     }
 
-    function fallbackImage(event: Event) {
-        const img = event.currentTarget;
-        if (img instanceof HTMLImageElement && img.src.startsWith('https://www.artic.edu/iiif/')) {
-            img.src = `/api/image?${new URLSearchParams({ url: img.src })}`;
-        }
-    }
-
     async function regeneratePalette() {
         // Invalidate before awaiting extraction: a previous save may finish meanwhile.
         invalidateShare();
@@ -471,7 +497,7 @@
             aiDescription = "";
             paletteLoading = true;
             const extracted = await extractColors(
-                getImageUrl(artwork.image_id, "large", artwork.thumbnail?.width),
+                artwork,
                 extractionMode,
                 colorCount,
             );
@@ -487,7 +513,7 @@
         if (!artwork?.image_id) return;
         aiLoading = true;
         try {
-            const data = await generateTone(artwork.image_id, colorCount, () => request === paletteRequest, artwork.thumbnail?.width);
+            const data = await generateTone(artwork, colorCount, () => request === paletteRequest);
             if (request !== paletteRequest) return;
             acceptPalette('ai', data);
         } catch (e) {
@@ -618,6 +644,24 @@
                     </div>
                 </form>
             </details>
+            {#if recentSearches.length}
+                <details class="workbench-panel mb-4" open={!showResults}>
+                    <summary>Recent searches <span class="opacity-70">({recentSearches.length})</span></summary>
+                    <p class="text-xs mt-3 opacity-70">Saved in this browser. Reopen a search to see current results.</p>
+                    <ul class="grid gap-2 mt-3" aria-label="Recent searches">
+                        {#each recentSearches as entry (entry.id)}
+                            <li class="min-w-0">
+                                <button type="button" class="recent-search w-full text-left rounded-md p-3" onclick={() => restoreSearch(entry)}>
+                                    <span class="block text-sm break-words">{entry.search.q || (entry.search.artist ? `Works by ${entry.search.artist}` : entry.search.medium || 'All artworks')}</span>
+                                    {#if searchDescription(entry)}<span class="block text-xs mt-1 opacity-70 break-words">{searchDescription(entry)}</span>{/if}
+                                </button>
+                            </li>
+                        {/each}
+                    </ul>
+                    <button type="button" class="text-xs underline mt-3" onclick={clearSearchHistory}>Clear searches</button>
+                </details>
+            {/if}
+            {#if searchHistoryStatus}<p role="status" class="text-xs mb-3">{searchHistoryStatus}</p>{/if}
             {#if searchBusy}<p role="status" class="text-sm mb-3">Searching the collection…</p>{/if}
             {#if searchStatus}<p role="status" class="text-sm mb-3">{searchStatus}</p>{/if}
 
@@ -635,11 +679,9 @@
                             style="border-bottom: 1px solid var(--border);"
                         >
                             {#if result.image_id}
-                                <img
-                                    src={getImageUrl(result.image_id, "thumb", result.thumbnail?.width)}
-                                    onerror={fallbackImage}
+                                <ArtworkImage artwork={result} size="thumb" layout="thumbnail"
                                     alt=""
-                                    class="h-10 w-10 object-cover rounded-sm"
+                                    class="h-10 w-10 rounded-sm"
                                 />
                             {/if}
                             <div class="min-w-0 flex-1">
@@ -813,7 +855,7 @@
                 <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 mt-4">
                     {#each recent as entry (entry.id)}
                         <button class="history-item text-left min-w-0" onclick={() => restoreRecent(entry)} title={`Restore ${entry.artwork.title} (${entry.mode === 'ai' ? 'tone' : entry.mode})`}>
-                            {#if entry.artwork.image_id}<img loading="lazy" src={getImageUrl(entry.artwork.image_id, 'small', entry.artwork.thumbnail?.width)} onerror={fallbackImage} alt="" class="h-20 w-full object-cover rounded-t-md" />{/if}
+                            {#if entry.artwork.image_id}<ArtworkImage artwork={entry.artwork} size="small" layout="thumbnail" loading="lazy" alt="" class="h-20 w-full rounded-t-md" />{/if}
                             <span class="flex h-5">{#each entry.colors as color}<span class="flex-1" style={`background:${color.hex}`}></span>{/each}</span>
                             <span class="block p-2 text-xs truncate">{entry.artwork.title}</span>
                             <span class="block px-2 pb-2 text-[10px] opacity-70">{entry.mode === 'ai' ? 'tone' : entry.mode} · {entry.colors.length} colors</span>
@@ -847,7 +889,7 @@
             {#if loading}
                 <p role="status">Finding artwork…</p>
             {:else if artwork?.image_id}
-                <img src={getImageUrl(artwork.image_id, 'large', artwork.thumbnail?.width)} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} class="artwork-image" />
+                <ArtworkImage {artwork} imageClass="artwork-image" />
             {:else}
                 <p>No artwork available. Try Random.</p>
             {/if}
@@ -912,7 +954,7 @@
             {#if loading}
                 <p role="status">Finding artwork…</p>
             {:else if artwork?.image_id}
-                <img src={getImageUrl(artwork.image_id, 'large', artwork.thumbnail?.width)} onerror={fallbackImage} alt={artwork.thumbnail?.alt_text || artwork.title} />
+                <ArtworkImage {artwork} />
             {:else}
                 <p>No artwork available. Try Random.</p>
             {/if}

@@ -1,0 +1,10 @@
+# Local recovery copies, never application output or uploaded build inputs.
+archives/
+
+# Local credentials, operator reports and generated build state are not source.
+.env
+.env.*
+.bug-hunter/
+.wrangler/
+.svelte-kit/
+build/

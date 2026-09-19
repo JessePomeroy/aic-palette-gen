@@ -12,6 +12,8 @@ It also checks that desktop/mobile actions, locked controls and modal tools shar
 
 `palette-image-size.mjs` replays the museum's no-enlargement responses for narrow artworks. It checks initial load, refresh, count changes, mode comparison, and both Classic/Card downloads on desktop/mobile without contacting the museum.
 
+`artwork-fallback.mjs` checks sharp/direct and proxy images, museum failures with real packaged sample fixtures, corrupt/unindexed/changed images, non-public-domain exclusion from saved previews, preview recovery, duplicate hydration/error events, stale selections, shared palettes, thumbnails, both card exports, and small-phone layout. It verifies that film presentation does not alter source pixels or extracted colors, and that an explicit Tone upload is an unfiltered 200px JPEG. All network responses are fixtures; no museum, database or paid-provider calls occur. Run it with `node --import tsx tests/browser/artwork-fallback.mjs chromium` (or `webkit`) using the same environment below.
+
 Classic preview checks compare its pixels with the downloaded PNG and verify that switching formats, loading, and retrying a failed preview keep the Save controls in place at desktop and mobile widths.
 
 Start an isolated local dev server with empty provider/database settings, record its PID, and use an installed Playwright module/browser pair. Playwright is an optional verification tool, not a new production dependency or part of the default Node test suite.
@@ -57,3 +59,7 @@ env PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
 ```
 
 `WORKBENCH_TEST_URL` can select a different localhost port. `WORKBENCH_TEST_OUTPUT` optionally saves rendered screenshots. Stop only the isolated dev server you started. No command here deploys or modifies the active artwork index.
+
+`contrast-sample.mjs` checks the actual Palette drawer's lorem ipsum heading while resizing between desktop and small-phone widths. It verifies whole-word fitting on one line without shrinking the type, larger browser text, changed font metrics, reopening the panel, and unchanged sample colors/caption. Run it with `node tests/browser/contrast-sample.mjs chromium` (or `webkit`) using the same environment above; all artwork responses are fixtures and other external/API calls are blocked.
+
+`search-history.mjs` checks completed searches, filter/page restoration, artwork selection, reload persistence, deduplication, exact artist-ID queries, failed/empty results, stale responses, clearing during pending requests, and blocked/corrupt browser storage. It exercises desktop/mobile Search panels with fixture-only requests and isolated storage. Run it with `node tests/browser/search-history.mjs chromium` (or `webkit`) using the same environment above.

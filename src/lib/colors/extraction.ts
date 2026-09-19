@@ -2,8 +2,8 @@
  * Color Extraction Module
  *
  * Extracts dominant colors from artwork images using the browser's Canvas API
- * and k-means clustering. Image loading tries the browser first, with a
- * same-origin fallback when the IIIF response cannot be read through CORS.
+ * and k-means clustering. Image loading tries the museum and proxy before
+ * using an unfiltered, verified indexed sample when available.
  *
  * Two extraction modes:
  * - Dominant: clusters sorted by brightness (light → dark) — best for overall palette
@@ -13,7 +13,7 @@
  * TODO: Reintegrate node-vibrant/browser for vibrant mode (better results)
  *
  * Pipeline:
- * 1. Fetch image directly, falling back to the same-origin image proxy
+ * 1. Load the artwork's unfiltered image through the shared image loader
  * 2. Load into an <img> element from a blob URL
  * 3. Draw to a downscaled canvas (max 100px) for performance
  * 4. Read pixel data via getImageData()
@@ -22,6 +22,9 @@
  * 7. Sort by brightness or saturation depending on mode
  *
  */
+
+import type { Artwork } from "../api/artic";
+import { decodeImage, loadArtworkImage } from "../images/artwork-image";
 
 /** A single extracted color with multiple format representations */
 export interface ExtractedColor {
@@ -34,71 +37,22 @@ export interface ExtractedColor {
 /** Which extraction algorithm to use */
 export type ExtractionMode = "dominant" | "vibrant" | "ai";
 
-export async function fetchImageBlob(
-	imageUrl: string,
-	signal?: AbortSignal,
-): Promise<Blob> {
-	const proxyUrl = `/api/image?${new URLSearchParams({ url: imageUrl })}`;
-	for (const url of [imageUrl, proxyUrl]) {
-		signal?.throwIfAborted();
-		try {
-			const response = await fetch(url, {
-				cache: "no-cache",
-				signal: signal
-					? AbortSignal.any([signal, AbortSignal.timeout(15000)])
-					: AbortSignal.timeout(15000),
-			});
-			if (
-				!response.ok ||
-				!response.headers.get("content-type")?.startsWith("image/")
-			)
-				continue;
-			return await response.blob();
-		} catch {
-			signal?.throwIfAborted();
-			// AIC may allow a browser while rejecting a server, or vice versa.
-		}
-	}
-	throw new Error("Image could not be loaded directly or through the proxy");
-}
-
 /**
- * Main entry point: extract a color palette from an image URL.
+ * Main entry point: extract a color palette from the selected artwork.
  *
- * @param imageUrl  - Full IIIF image URL (e.g. from getImageUrl())
+ * @param artwork  - Artwork identity and native image dimensions
  * @param mode      - 'dominant' (sorted by brightness) or 'vibrant' (sorted by saturation)
  * @param count     - Number of colors to extract (5-8)
  * @returns Array of extracted colors, or empty array on failure
  */
 export async function extractColors(
-	imageUrl: string,
+	artwork: Artwork,
 	mode: ExtractionMode,
 	count: number,
 ): Promise<ExtractedColor[]> {
 	try {
-		// Convert to blob → object URL so we can load it in an <img> element
-		// (Canvas needs an HTMLImageElement to drawImage)
-		const blob = await fetchImageBlob(imageUrl);
-		const blobUrl = URL.createObjectURL(blob);
-
-		return new Promise((resolve) => {
-			const img = new Image();
-			img.crossOrigin = "anonymous";
-
-			img.onload = () => {
-				URL.revokeObjectURL(blobUrl);
-				const colors = processImage(img, count, mode);
-				resolve(colors);
-			};
-
-			img.onerror = () => {
-				URL.revokeObjectURL(blobUrl);
-				console.error("Failed to load image from blob URL");
-				resolve([]);
-			};
-
-			img.src = blobUrl;
-		});
+		const { blob } = await loadArtworkImage(artwork);
+		return processImage(await decodeImage(blob), count, mode);
 	} catch (e) {
 		console.error("Color extraction failed:", e);
 		return [];
@@ -124,8 +78,8 @@ function processImage(
 	// Scale down to max 100px for performance (color extraction doesn't need full res)
 	const maxSize = 100;
 	const scale = Math.min(maxSize / img.width, maxSize / img.height, 1);
-	canvas.width = Math.floor(img.width * scale);
-	canvas.height = Math.floor(img.height * scale);
+	canvas.width = Math.max(1, Math.floor(img.width * scale));
+	canvas.height = Math.max(1, Math.floor(img.height * scale));
 
 	ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 

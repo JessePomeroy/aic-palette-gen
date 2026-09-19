@@ -497,6 +497,9 @@ try {
 	await fits(page, "short desktop accessibility fallback", true);
 	await page.setViewportSize({ width: 1440, height: 900 });
 	state.imageFails = true;
+	// This scenario exercises total image unavailability; indexed previews are
+	// covered separately and now correctly allow extraction through a museum failure.
+	state.indexUnavailable = true;
 	await page
 		.locator("main")
 		.getByRole("combobox", { name: "Extraction mode" })
@@ -506,6 +509,7 @@ try {
 		.waitFor();
 	await fits(page, "image failure");
 	state.imageFails = false;
+	state.indexUnavailable = false;
 	await page
 		.getByRole("button", { name: "Retry palette", exact: true })
 		.click();

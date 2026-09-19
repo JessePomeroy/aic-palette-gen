@@ -1,3 +1,5 @@
+import { LEGACY_ASSET } from "./legacy.mjs";
+
 // Public, immutable color evidence only. This Worker has one bucket and no write routes.
 const ASSET =
 	/^\/v3\/[a-z0-9-]{1,80}\/(?:manifest\.json|directory\.bin\.gz|tiles\/\d{1,2}_-?\d{1,2}_-?\d{1,2}\.bin\.gz|metadata\/\d{1,6}\.json\.gz|samples\/\d{1,6}\.pack)$/;
@@ -24,7 +26,9 @@ export default {
 	 */
 	async fetch(request, env, context) {
 		const url = new URL(request.url);
-		if (!ASSET.test(url.pathname) || url.search) return failure(404);
+		const legacy = LEGACY_ASSET.test(url.pathname);
+		if ((!ASSET.test(url.pathname) && !legacy) || url.search)
+			return failure(404);
 		if (request.method === "OPTIONS")
 			return new Response(null, { status: 204, headers: CORS });
 		if (!["GET", "HEAD"].includes(request.method)) return failure(405);
@@ -62,7 +66,13 @@ export default {
 				if (!object) return failure(404);
 				if (
 					(range && range.offset + range.length > object.size) ||
-					(!range && object.size > 8 * 1024 * 1024)
+					(!range &&
+						object.size >
+							(legacy
+								? url.pathname.endsWith(".rgba")
+									? 160000
+									: 16 * 1024 * 1024
+								: 8 * 1024 * 1024))
 				) {
 					await object.body.cancel();
 					return failure(range ? 416 : 503);

@@ -104,6 +104,8 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 .lock-button.locked { background: var(--accent); color: var(--accent-foreground); }
 .history-item { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; cursor: pointer; }
 .history-item:hover { border-color: var(--accent-focus); }
+.recent-search { border: 1px solid var(--border); background: var(--bg-surface); cursor: pointer; }
+.recent-search:hover { border-color: var(--accent-focus); }
 
 /* Share inherited theme values with the native dialog without adding a layout box. */
 .workbench-theme { display: contents; }
