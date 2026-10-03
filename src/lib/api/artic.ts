@@ -84,7 +84,7 @@ export function getImageUrl(
 	size: "full" | "large" | "medium" | "small" | "thumb" = "full",
 	nativeWidth?: number,
 ): string {
-	const sizes: Record<string, number> = {
+	const sizes = {
 		full: 1686, // Max resolution — good for detail views
 		large: 843, // Half-res — good for main display + color extraction
 		medium: 400, // Thumbnails in grid views

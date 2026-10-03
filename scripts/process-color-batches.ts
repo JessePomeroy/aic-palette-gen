@@ -16,10 +16,13 @@ import { gunzipSync, gzipSync } from "node:zlib";
 import {
 	analyzeColorSignature,
 	colorSampleDigest,
+	type IndexedArtwork,
 	readColorIndex,
 	readColorSample,
 } from "../src/lib/colors/color-index.ts";
+import type { Colorfulness } from "../src/lib/colors/colorfulness.ts";
 import { analyzeColorfulness } from "../src/lib/colors/colorfulness.ts";
+import type { CatalogArtwork } from "../src/lib/colors/index-catalog.ts";
 import { readArtworkCatalog } from "../src/lib/colors/index-catalog.ts";
 import { readManifest } from "./build-color-index.ts";
 import { requestColorImage } from "./lib/color-download.ts";
@@ -27,6 +30,19 @@ import { ImageAnalysisError, prepareColorImage } from "./lib/color-image.ts";
 
 const RECIPE = "canonical-v2-colorfulness-v1-gzip-v1";
 const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
+interface IndexedBatchReceipt {
+	plan: string;
+	status: "indexed";
+	artwork: CatalogArtwork;
+	entry: IndexedArtwork;
+	colorfulness: Colorfulness;
+	source: {
+		path: string;
+		sha256: string;
+		bytes: number;
+		reused: boolean;
+	};
+}
 const digest = (data: string | Uint8Array) =>
 	createHash("sha256").update(data).digest("hex");
 const same = (a: unknown, b: unknown) =>
@@ -341,7 +357,7 @@ export async function processColorBatch(options: BatchOptions) {
 						await rename(temporary, path);
 					}
 				}
-				let receipt: unknown;
+				let receipt: IndexedBatchReceipt | undefined;
 				if (!reason) {
 					await regular(path);
 					const bytes = await readFile(path);

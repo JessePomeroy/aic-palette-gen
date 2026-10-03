@@ -1,5 +1,7 @@
 import type { Artwork } from "../api/artic";
 
+export type CatalogArtwork = Artwork & { image_id: string };
+
 const IMAGE_ID =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -8,7 +10,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 /** Normalize public museum metadata once, before releasing or loading a catalog. */
-export function readIndexedArtwork(value: unknown): Artwork {
+export function readIndexedArtwork(value: unknown): CatalogArtwork {
 	if (
 		!record(value) ||
 		typeof value.id !== "number" ||
@@ -63,10 +65,12 @@ export function readIndexedArtwork(value: unknown): Artwork {
 	};
 }
 
-export function readArtworkCatalog(value: unknown): Map<number, Artwork> {
+export function readArtworkCatalog(
+	value: unknown,
+): Map<number, CatalogArtwork> {
 	if (!record(value) || value.version !== 1 || !Array.isArray(value.artworks))
 		throw new Error("Invalid artwork catalog");
-	const artworks = new Map<number, Artwork>();
+	const artworks = new Map<number, CatalogArtwork>();
 	for (const row of value.artworks) {
 		const artwork = readIndexedArtwork(row);
 		if (artworks.has(artwork.id)) throw new Error("Duplicate catalog artwork");
