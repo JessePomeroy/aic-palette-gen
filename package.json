@@ -21,10 +21,13 @@
 		"prepare": "husky",
 		"test": "node --import tsx --test tests/*.test.ts",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"lint:anti-slop": "oxlint .",
+		"lint": "npm run lint:anti-slop"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.13",
+		"@oxlint/plugins": "1.86.0",
 		"@sveltejs/adapter-vercel": "^6.3.3",
 		"@sveltejs/kit": "^2.50.2",
 		"@sveltejs/vite-plugin-svelte": "^6.2.4",
@@ -32,6 +35,7 @@
 		"dotenv": "^17.3.1",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.3.1",
+		"oxlint": "1.86.0",
 		"svelte": "^5.51.0",
 		"svelte-check": "^4.4.2",
 		"tailwindcss": "^4.2.1",

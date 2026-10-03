@@ -95,6 +95,7 @@ https://www.artic.edu/iiif/2/{image_id}/full/843,/0/default.jpg
 npm run dev      # Start only when implementation/verification requires it; record the PID
 npm run build    # Production build
 npm run check    # Svelte/TypeScript checks
+npm run lint     # Anti-slop baseline warnings
 npm test         # Offline/fixture-based Node suite
 ```
 
